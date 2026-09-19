@@ -1,0 +1,35 @@
+{
+  "kind": "task",
+  "schemaVersion": "0.1",
+  "taskId": "task-demo",
+  "revision": 1,
+  "goal": "連絡先フォームに指定したメールアドレスを入力し、対象と値を確認する。送信はしない。",
+  "scopeRef": "scope-fixture",
+  "recipeId": "fill-fields.v1",
+  "inputs": {
+    "email": "aria@example.invalid"
+  },
+  "slots": [
+    {
+      "id": "contactEmail",
+      "meaning": "連絡先として使うメールアドレス",
+      "inputRef": "email",
+      "regionHint": "連絡先"
+    }
+  ],
+  "requiredChecks": [
+    {
+      "id": "check-email",
+      "kind": "value_equals_input",
+      "slotId": "contactEmail",
+      "inputRef": "email",
+      "comparison": "exact"
+    }
+  ],
+  "budgets": {
+    "maxOperations": 20,
+    "maxSemanticRequests": 12,
+    "maxObservationExpansions": 3,
+    "deadlineMs": 120000
+  }
+}

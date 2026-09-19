@@ -1,0 +1,25 @@
+{
+  "kind": "decision",
+  "schemaVersion": "0.1",
+  "decisionId": "decision-1",
+  "taskId": "task-demo",
+  "taskRevision": 1,
+  "sessionEpoch": "session-a",
+  "observationId": "obs-1",
+  "questionSetVersion": "binding-v1",
+  "questionId": "contact-email",
+  "providerModel": "example-model-only",
+  "stateDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "options": [
+    "candidate_contact",
+    "need_more_observation",
+    "none_in_observed_scope"
+  ],
+  "selected": "candidate_contact",
+  "probabilities": {
+    "candidate_contact": 0.92,
+    "need_more_observation": 0.06,
+    "none_in_observed_scope": 0.02
+  },
+  "confidence": 0.8
+}

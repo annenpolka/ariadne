@@ -1,0 +1,9 @@
+{
+  "kind": "host_receipt",
+  "schemaVersion": "0.1",
+  "operationId": "operation-1",
+  "sessionEpoch": "session-a",
+  "eventSeq": 9,
+  "status": "attempted",
+  "reason": "none"
+}

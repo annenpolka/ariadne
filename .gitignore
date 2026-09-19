@@ -1,0 +1,21 @@
+# Local Python tooling
+.venv/
+__pycache__/
+*.py[cod]
+.cache/
+.pytest_cache/
+.ruff_cache/
+
+# Future TypeScript / Swift build output
+node_modules/
+dist/
+.build/
+DerivedData/
+
+# Local settings and runtime data
+.DS_Store
+.env
+.env.*
+!.env.example
+.runtime/
+*.log

@@ -1,0 +1,173 @@
+{
+  "schema": "Ariadne v0.1 design draft",
+  "scope": "JSON shape checks and selected cross-field checks only; synthetic examples",
+  "accepted_valid_examples": 6,
+  "rejected_mutations": 22,
+  "native_desktop_tested": false,
+  "live_model_tested": false,
+  "runtime_state_machine_tested": false,
+  "cases": [
+    {
+      "test": "decision.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "test": "host-receipt.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "test": "observation.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "test": "prepared-operation.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "test": "task-result.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "test": "task.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "test": "unknown task field",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "zero task revision",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "missing required checks",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "dangling input reference",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "duplicate slots",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "coordinate override",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "bound target substitution",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "operation missing text",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "wrong binding observation",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "negative probability",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "confidence above one",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "unlisted selected option",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "incomplete distribution",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "unnormalized distribution",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "verified unknown check",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "verified semantic-only check",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "verified without evidence",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "verified unresolved operation",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "verified missing required check",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "capture time reversed",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "unavailable is not empty",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "incorrect node count",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "kind": "observation",
+  "schemaVersion": "0.1",
+  "observationId": "obs-1",
+  "sessionEpoch": "session-a",
+  "scopeRef": "scope-fixture",
+  "capture": {
+    "startedMonoMs": 100,
+    "endedMonoMs": 110,
+    "eventSeqBefore": 5,
+    "eventSeqAfter": 5,
+    "consistency": "best_effort"
+  },
+  "coverage": {
+    "rootRef": "node-window",
+    "status": "provider_exhausted",
+    "omittedReasons": [],
+    "nodeCount": 3
+  },
+  "nodes": [
+    {
+      "ref": "node-window",
+      "parentRef": null,
+      "role": "window",
+      "nativeRole": "AXWindow",
+      "name": {
+        "status": "available",
+        "value": "Ariadne Fixture"
+      },
+      "value": {
+        "status": "unsupported"
+      },
+      "enabled": {
+        "status": "available",
+        "value": true
+      },
+      "capabilities": []
+    },
+    {
+      "ref": "node-contact",
+      "parentRef": "node-window",
+      "role": "group",
+      "nativeRole": "AXGroup",
+      "name": {
+        "status": "available",
+        "value": "連絡先"
+      },
+      "value": {
+        "status": "unsupported"
+      },
+      "enabled": {
+        "status": "available",
+        "value": true
+      },
+      "capabilities": []
+    },
+    {
+      "ref": "node-email",
+      "parentRef": "node-contact",
+      "role": "text_field",
+      "nativeRole": "AXTextField",
+      "name": {
+        "status": "available",
+        "value": "メール"
+      },
+      "value": {
+        "status": "available",
+        "value": ""
+      },
+      "enabled": {
+        "status": "available",
+        "value": true
+      },
+      "capabilities": [
+        "set_value"
+      ]
+    }
+  ]
+}

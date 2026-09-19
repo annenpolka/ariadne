@@ -1,0 +1,40 @@
+{
+  "kind": "task_result",
+  "schemaVersion": "0.1",
+  "taskId": "task-demo",
+  "taskRevision": 1,
+  "status": "verified_success",
+  "requiredCheckIds": [
+    "check-email"
+  ],
+  "checks": [
+    {
+      "checkId": "check-email",
+      "status": "pass",
+      "method": "exact_readback",
+      "evidence": [
+        {
+          "observationId": "obs-2",
+          "nodeRef": "node-email",
+          "field": "value"
+        },
+        {
+          "observationId": "obs-2",
+          "nodeRef": "node-email",
+          "field": "parentRef"
+        },
+        {
+          "observationId": "obs-2",
+          "nodeRef": "node-contact",
+          "field": "name"
+        }
+      ]
+    }
+  ],
+  "unresolvedOperationIds": [],
+  "assurance": {
+    "targetBinding": "semantic",
+    "effectCheck": "deterministic",
+    "environment": "external_best_effort"
+  }
+}

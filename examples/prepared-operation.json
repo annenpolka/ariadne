@@ -1,0 +1,39 @@
+{
+  "kind": "prepared_operation",
+  "schemaVersion": "0.1",
+  "preparedId": "prepared-1",
+  "operationId": "operation-1",
+  "taskId": "task-demo",
+  "taskRevision": 1,
+  "sessionEpoch": "session-a",
+  "controlEpoch": 0,
+  "scopeRef": "scope-fixture",
+  "grantRef": "grant-fixture",
+  "grantVersion": 1,
+  "originObservationId": "obs-1",
+  "binding": {
+    "slotId": "contactEmail",
+    "targetRef": "node-email",
+    "observationId": "obs-1",
+    "source": "semantic",
+    "evidence": [
+      {
+        "observationId": "obs-1",
+        "nodeRef": "node-email",
+        "field": "name"
+      },
+      {
+        "observationId": "obs-1",
+        "nodeRef": "node-contact",
+        "field": "name"
+      }
+    ]
+  },
+  "command": {
+    "kind": "set_value",
+    "targetRef": "node-email",
+    "value": "aria@example.invalid"
+  },
+  "guardSetRef": "guards-1",
+  "expiresAtMonoMs": 10110
+}
