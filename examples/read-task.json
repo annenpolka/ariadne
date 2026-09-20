@@ -1,0 +1,25 @@
+{
+  "kind": "read_task",
+  "schemaVersion": "0.1",
+  "taskId": "read-task-demo",
+  "revision": 1,
+  "recipeId": "project-ax-text.v1",
+  "completeness": "observed_region",
+  "readSessionId": "read-demo",
+  "scopeRef": "scope-browser",
+  "document": {
+    "sessionEpoch": "session-read",
+    "ref": "document-demo",
+    "generation": 1
+  },
+  "nativeRoles": [
+    "AXStaticText"
+  ],
+  "attributes": [
+    "value"
+  ],
+  "limits": {
+    "maxRecords": 100,
+    "maxOutputBytes": 262144
+  }
+}

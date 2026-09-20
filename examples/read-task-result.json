@@ -1,0 +1,62 @@
+{
+  "kind": "read_task_result",
+  "schemaVersion": "0.1",
+  "taskId": "read-task-demo",
+  "taskRevision": 1,
+  "taskDigest": "3469e375730189c183e0aa0cf07f5efdeb029853a64d2731a62121151e8a04b0",
+  "recipeId": "project-ax-text.v1",
+  "completeness": "observed_region",
+  "mapping": "ax_node_attributes",
+  "status": "projected",
+  "source": {
+    "readSessionId": "read-demo",
+    "scopeRef": "scope-browser",
+    "observationId": "obs-read-demo",
+    "observationDigest": "2923294142ae2abddcb12dcccec2af5185ce85a8ded16a788d3f621073debd11",
+    "document": {
+      "sessionEpoch": "session-read",
+      "ref": "document-demo",
+      "generation": 1
+    },
+    "coverage": {
+      "rootRef": "node-root",
+      "status": "provider_exhausted",
+      "omittedReasons": [],
+      "nodeCount": 2
+    },
+    "capture": {
+      "startedMonoMs": 100,
+      "endedMonoMs": 110,
+      "eventSeqBefore": 0,
+      "eventSeqAfter": 0,
+      "consistency": "best_effort"
+    }
+  },
+  "matchedNodeCount": 1,
+  "selectionUncertain": false,
+  "outputTruncated": false,
+  "records": [
+    {
+      "nodeRef": "node-text",
+      "parentRef": "node-root",
+      "nativeRole": "AXStaticText",
+      "attributes": [
+        {
+          "attribute": "value",
+          "status": "available",
+          "text": "架空🧵é",
+          "evidence": {
+            "observationId": "obs-read-demo",
+            "nodeRef": "node-text",
+            "attribute": "value",
+            "start": 0,
+            "end": 5,
+            "unit": "unicode_scalar"
+          }
+        }
+      ]
+    }
+  ],
+  "modelCalls": 0,
+  "operations": 0
+}

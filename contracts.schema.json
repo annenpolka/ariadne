@@ -8,6 +8,15 @@
       "$ref": "#/$defs/TaskSpec"
     },
     {
+      "$ref": "#/$defs/ReadSessionSpec"
+    },
+    {
+      "$ref": "#/$defs/ReadTaskSpec"
+    },
+    {
+      "$ref": "#/$defs/ReadTaskResult"
+    },
+    {
       "$ref": "#/$defs/Observation"
     },
     {
@@ -24,6 +33,131 @@
     }
   ],
   "$defs": {
+    "ReadLimits": {
+      "type": "object",
+      "properties": {
+        "maxNodes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "maxDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 8192,
+          "maximum": 33554432
+        },
+        "maxCaptureMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 20000
+        },
+        "maxCaptures": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "deadlineMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        }
+      },
+      "required": [
+        "maxNodes",
+        "maxDepth",
+        "maxBytes",
+        "maxCaptureMs",
+        "maxCaptures",
+        "deadlineMs"
+      ],
+      "additionalProperties": false
+    },
+    "PageScope": {
+      "type": "object",
+      "properties": {
+        "origins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "origins"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentStamp": {
+      "type": "object",
+      "properties": {
+        "sessionEpoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "sessionEpoch",
+        "ref",
+        "generation"
+      ],
+      "additionalProperties": false
+    },
+    "ReadSessionSpec": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "read_session"
+        },
+        "schemaVersion": {
+          "const": "0.1"
+        },
+        "readSessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "scopeRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "limits": {
+          "$ref": "#/$defs/ReadLimits"
+        }
+      },
+      "required": [
+        "kind",
+        "schemaVersion",
+        "readSessionId",
+        "scopeRef",
+        "limits"
+      ],
+      "additionalProperties": false
+    },
     "EvidenceRef": {
       "type": "object",
       "properties": {
@@ -497,7 +631,8 @@
                   "virtualized",
                   "unsupported",
                   "error",
-                  "redacted"
+                  "redacted",
+                  "frame"
                 ]
               },
               "uniqueItems": true
@@ -521,7 +656,10 @@
             "$ref": "#/$defs/Node"
           },
           "minItems": 1,
-          "maxItems": 2048
+          "maxItems": 65536
+        },
+        "document": {
+          "$ref": "#/$defs/DocumentStamp"
         }
       },
       "required": [
@@ -533,6 +671,474 @@
         "capture",
         "coverage",
         "nodes"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "not": {
+              "required": [
+                "document"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "nodes": {
+                "maxItems": 2048
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ReadTaskSpec": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "read_task"
+        },
+        "schemaVersion": {
+          "const": "0.1"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recipeId": {
+          "const": "project-ax-text.v1"
+        },
+        "completeness": {
+          "const": "observed_region"
+        },
+        "readSessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "scopeRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "document": {
+          "$ref": "#/$defs/DocumentStamp"
+        },
+        "nativeRoles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^AX[A-Za-z0-9]+$",
+            "maxLength": 128
+          },
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "name",
+              "value"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "maxRecords": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65536
+            },
+            "maxOutputBytes": {
+              "type": "integer",
+              "minimum": 8192,
+              "maximum": 134217728
+            }
+          },
+          "required": [
+            "maxRecords",
+            "maxOutputBytes"
+          ],
+          "additionalProperties": false
+        },
+        "rootRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      },
+      "required": [
+        "kind",
+        "schemaVersion",
+        "taskId",
+        "revision",
+        "recipeId",
+        "completeness",
+        "readSessionId",
+        "scopeRef",
+        "document",
+        "nativeRoles",
+        "attributes",
+        "limits"
+      ],
+      "additionalProperties": false
+    },
+    "LiteralSpan": {
+      "type": "object",
+      "properties": {
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "nodeRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "attribute": {
+          "enum": [
+            "name",
+            "value"
+          ]
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unit": {
+          "const": "unicode_scalar"
+        }
+      },
+      "required": [
+        "observationId",
+        "nodeRef",
+        "attribute",
+        "start",
+        "end",
+        "unit"
+      ],
+      "additionalProperties": false
+    },
+    "ProjectedAttribute": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "attribute": {
+              "enum": [
+                "name",
+                "value"
+              ]
+            },
+            "status": {
+              "const": "available"
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 65536
+            },
+            "evidence": {
+              "$ref": "#/$defs/LiteralSpan"
+            }
+          },
+          "required": [
+            "attribute",
+            "status",
+            "text",
+            "evidence"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attribute": {
+              "enum": [
+                "name",
+                "value"
+              ]
+            },
+            "status": {
+              "enum": [
+                "unavailable",
+                "unsupported",
+                "redacted",
+                "error"
+              ]
+            }
+          },
+          "required": [
+            "attribute",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ProjectedNode": {
+      "type": "object",
+      "properties": {
+        "nodeRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "parentRef": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nativeRole": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectedAttribute"
+          },
+          "minItems": 1,
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "nodeRef",
+        "parentRef",
+        "nativeRole",
+        "attributes"
+      ],
+      "additionalProperties": false
+    },
+    "ReadTaskResult": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "read_task_result"
+        },
+        "schemaVersion": {
+          "const": "0.1"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "taskRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "taskDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "recipeId": {
+          "const": "project-ax-text.v1"
+        },
+        "completeness": {
+          "const": "observed_region"
+        },
+        "mapping": {
+          "const": "ax_node_attributes"
+        },
+        "status": {
+          "enum": [
+            "projected",
+            "partial",
+            "no_match_in_observation",
+            "unknown"
+          ]
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "readSessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "scopeRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "observationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "observationDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "document": {
+              "$ref": "#/$defs/DocumentStamp"
+            },
+            "coverage": {
+              "type": "object",
+              "properties": {
+                "rootRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                },
+                "status": {
+                  "enum": [
+                    "provider_exhausted",
+                    "partial"
+                  ]
+                },
+                "omittedReasons": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "budget",
+                      "virtualized",
+                      "unsupported",
+                      "error",
+                      "redacted",
+                      "frame"
+                    ]
+                  },
+                  "uniqueItems": true
+                },
+                "nodeCount": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "rootRef",
+                "status",
+                "omittedReasons",
+                "nodeCount"
+              ],
+              "additionalProperties": false
+            },
+            "capture": {
+              "type": "object",
+              "properties": {
+                "startedMonoMs": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "endedMonoMs": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "eventSeqBefore": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "eventSeqAfter": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "consistency": {
+                  "enum": [
+                    "best_effort",
+                    "atomic"
+                  ]
+                }
+              },
+              "required": [
+                "startedMonoMs",
+                "endedMonoMs",
+                "eventSeqBefore",
+                "eventSeqAfter",
+                "consistency"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "readSessionId",
+            "scopeRef",
+            "observationId",
+            "observationDigest",
+            "document",
+            "coverage",
+            "capture"
+          ],
+          "additionalProperties": false
+        },
+        "matchedNodeCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65536
+        },
+        "selectionUncertain": {
+          "type": "boolean"
+        },
+        "outputTruncated": {
+          "type": "boolean"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProjectedNode"
+          },
+          "maxItems": 65536
+        },
+        "modelCalls": {
+          "const": 0
+        },
+        "operations": {
+          "const": 0
+        }
+      },
+      "required": [
+        "kind",
+        "schemaVersion",
+        "taskId",
+        "taskRevision",
+        "taskDigest",
+        "recipeId",
+        "completeness",
+        "mapping",
+        "status",
+        "source",
+        "matchedNodeCount",
+        "selectionUncertain",
+        "outputTruncated",
+        "records",
+        "modelCalls",
+        "operations"
       ],
       "additionalProperties": false
     },

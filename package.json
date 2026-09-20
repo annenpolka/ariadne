@@ -1,0 +1,37 @@
+{
+  "name": "ariadne",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "cli": "node --import tsx src/cli.ts",
+    "demo": "node --import tsx src/cli.ts demo",
+    "test:native": "node --import tsx test/native-acceptance.ts",
+    "test:textedit": "node --import tsx test/textedit-acceptance.ts",
+    "test:model": "node --import tsx test/jev-live.ts",
+    "test:native-model": "node --import tsx test/native-jev.ts",
+    "test:browser": "node --import tsx test/browser-acceptance.ts",
+    "browser": "node --import tsx src/browser.ts",
+    "test:browser-read": "node --import tsx test/browser-read-acceptance.ts",
+    "test:browser-extract": "node --import tsx test/browser-extract-acceptance.ts",
+    "test:browser-budget": "node --import tsx test/browser-budget-benchmark.ts"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "^0.6.0",
+    "ajv": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  },
+  "bin": {
+    "ariadne": "dist/src/cli.js"
+  }
+}

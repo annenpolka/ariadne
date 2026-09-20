@@ -1,0 +1,94 @@
+[
+  {
+    "url": "https://EXAMPLE.org/a?private=1#two",
+    "origin": "https://example.org"
+  },
+  {
+    "url": "https://example.org:443/x",
+    "origin": "https://example.org"
+  },
+  {
+    "url": "https://example.org:8443/x",
+    "origin": "https://example.org:8443"
+  },
+  {
+    "url": "http://127.0.0.1:1234/x?a=1#b",
+    "origin": "http://127.0.0.1:1234"
+  },
+  {
+    "url": "http://127.0.0.1:80/",
+    "origin": "http://127.0.0.1"
+  },
+  {
+    "url": "https://example.org/%2f?a=%23",
+    "origin": "https://example.org"
+  },
+  {
+    "url": "https://u:p@example.org/",
+    "origin": null
+  },
+  {
+    "url": "https://example.org@evil.org/",
+    "origin": null
+  },
+  {
+    "url": "https://example.org\\@evil.org/",
+    "origin": null
+  },
+  {
+    "url": "https://example.org/\n",
+    "origin": null
+  },
+  {
+    "url": "https://example.org/%ZZ",
+    "origin": null
+  },
+  {
+    "url": "https://example.org:0/",
+    "origin": null
+  },
+  {
+    "url": "https://example.org:65536/",
+    "origin": null
+  },
+  {
+    "url": "https://example.org:0443/",
+    "origin": null
+  },
+  {
+    "url": "https://[::1]/",
+    "origin": null
+  },
+  {
+    "url": "https://例.jp/",
+    "origin": null
+  },
+  {
+    "url": "HTTPS://example.org/",
+    "origin": null
+  },
+  {
+    "url": "http://example.org/",
+    "origin": null
+  },
+  {
+    "url": "http://localhost/",
+    "origin": null
+  },
+  {
+    "url": "file:///tmp/test",
+    "origin": null
+  },
+  {
+    "url": "https://example.org.evil/path%",
+    "origin": null
+  },
+  {
+    "url": "https://example.org/",
+    "origin": null
+  },
+  {
+    "url": "https://example.org/﻿",
+    "origin": null
+  }
+]

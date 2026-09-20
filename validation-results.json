@@ -1,8 +1,8 @@
 {
   "schema": "Ariadne v0.1 design draft",
   "scope": "JSON shape checks and selected cross-field checks only; synthetic examples",
-  "accepted_valid_examples": 6,
-  "rejected_mutations": 22,
+  "accepted_valid_examples": 10,
+  "rejected_mutations": 38,
   "native_desktop_tested": false,
   "live_model_tested": false,
   "runtime_state_machine_tested": false,
@@ -28,6 +28,26 @@
       "actual": "accept"
     },
     {
+      "test": "read-observation.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "test": "read-session.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "test": "read-task-result.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "test": "read-task.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
       "test": "task-result.json",
       "expected": "accept",
       "actual": "accept"
@@ -36,6 +56,102 @@
       "test": "task.json",
       "expected": "accept",
       "actual": "accept"
+    },
+    {
+      "test": "read observation cannot hide redaction",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "projection cannot claim all records",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "projection cannot add a semantic matcher",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "projection cannot filter missing roles as AX vocabulary",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "projection rejects duplicate attributes",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "projection record limit is bounded",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "projection cannot call model",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "projection cannot dispatch operations",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "projection cannot promote partial source",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "projection cannot quote a different node",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "projection spans use Unicode scalars",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "projection cannot replace literal with redacted",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "read session cannot carry Task slots",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "read node budget too large",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "read budget cannot be fractional",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "read byte budget too small",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
     },
     {
       "test": "unknown task field",

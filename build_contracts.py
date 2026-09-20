@@ -40,6 +40,20 @@ def attribute(value_schema):
     ]}
 
 D = {}
+# One source for browser read/output limits, their runtime checks, and the wire schema.
+# Defaults are validated against real-page measurements; see docs/browser-budget-sizing.md.
+READ_RANGES = {
+    "maxNodes": (1, 65536), "maxDepth": (1, 256), "maxBytes": (8192, 33554432),
+    "maxCaptureMs": (100, 20000), "maxCaptures": (1, 100), "deadlineMs": (1000, 600000)}
+READ_DEFAULTS = {"maxNodes": 32768, "maxDepth": 128, "maxBytes": 16777216,
+    "maxCaptureMs": 10000, "maxCaptures": 10, "deadlineMs": 60000}
+PROJECTION_RANGES = {"maxRecords": (1, 65536), "maxOutputBytes": (8192, 134217728)}
+PROJECTION_DEFAULTS = {"maxRecords": 32768, "maxOutputBytes": 67108864}
+D["ReadLimits"] = obj({key: {"type": "integer", "minimum": lo, "maximum": hi}
+    for key, (lo, hi) in READ_RANGES.items()})
+D["PageScope"] = obj({"origins": arr(SMALL, minItems=1, maxItems=16, uniqueItems=True)})
+D["DocumentStamp"] = obj({"sessionEpoch": ID, "ref": ID, "generation": POS})
+D["ReadSessionSpec"] = tagged("read_session", {"readSessionId": ID, "scopeRef": ID, "limits": ref("ReadLimits")})
 D["EvidenceRef"] = obj({"observationId": ID, "nodeRef": ID,
     "field": enum("name", "role", "parentRef", "value", "enabled", "capabilities")})
 D["CheckSpec"] = obj({"id": ID, "kind": {"const": "value_equals_input"},
@@ -70,9 +84,43 @@ D["Observation"] = tagged("observation", {
                     "eventSeqBefore": UINT, "eventSeqAfter": UINT,
                     "consistency": enum("best_effort", "atomic")}),
     "coverage": obj({"rootRef": ID, "status": enum("provider_exhausted", "partial"),
-                     "omittedReasons": arr(enum("budget", "virtualized", "unsupported", "error", "redacted"), uniqueItems=True),
+                     "omittedReasons": arr(enum("budget", "virtualized", "unsupported", "error", "redacted", "frame"), uniqueItems=True),
                      "nodeCount": UINT}),
-    "nodes": arr(ref("Node"), minItems=1, maxItems=2048)
+    "nodes": arr(ref("Node"), minItems=1, maxItems=READ_RANGES["maxNodes"][1])
+})
+# Keep the legacy operation observation boundary unchanged.
+D["Observation"]["allOf"] = [{"if": {"not": {"required": ["document"]}},
+    "then": {"properties": {"nodes": {"maxItems": 2048}}}}]
+# Optional on legacy Task observations; required and bound by the read-session RPC client.
+D["Observation"]["properties"]["document"] = ref("DocumentStamp")
+D["ReadTaskSpec"] = tagged("read_task", {
+    "taskId": ID, "revision": POS, "recipeId": {"const": "project-ax-text.v1"},
+    "completeness": {"const": "observed_region"}, "readSessionId": ID, "scopeRef": ID,
+    "document": ref("DocumentStamp"),
+    "nativeRoles": arr({"type": "string", "pattern": "^AX[A-Za-z0-9]+$", "maxLength": 128}, maxItems=32, uniqueItems=True),
+    "attributes": arr(enum("name", "value"), minItems=1, maxItems=2, uniqueItems=True),
+    "limits": obj({key: {"type": "integer", "minimum": lo, "maximum": hi}
+        for key, (lo, hi) in PROJECTION_RANGES.items()})
+})
+D["ReadTaskSpec"]["properties"]["rootRef"] = ID
+D["LiteralSpan"] = obj({"observationId": ID, "nodeRef": ID, "attribute": enum("name", "value"),
+    "start": UINT, "end": UINT, "unit": {"const": "unicode_scalar"}})
+D["ProjectedAttribute"] = {"oneOf": [
+    obj({"attribute": enum("name", "value"), "status": {"const": "available"}, "text": TEXT, "evidence": ref("LiteralSpan")}),
+    obj({"attribute": enum("name", "value"), "status": enum("unavailable", "unsupported", "redacted", "error")})
+]}
+D["ProjectedNode"] = obj({"nodeRef": ID, "parentRef": {"oneOf": [ID, {"type": "null"}]}, "nativeRole": SMALL,
+    "attributes": arr(ref("ProjectedAttribute"), minItems=1, maxItems=2)})
+HASH = {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+D["ReadTaskResult"] = tagged("read_task_result", {
+    "taskId": ID, "taskRevision": POS, "taskDigest": HASH,
+    "recipeId": {"const": "project-ax-text.v1"}, "completeness": {"const": "observed_region"},
+    "mapping": {"const": "ax_node_attributes"}, "status": enum("projected", "partial", "no_match_in_observation", "unknown"),
+    "source": obj({"readSessionId": ID, "scopeRef": ID, "observationId": ID, "observationDigest": HASH,
+        "document": ref("DocumentStamp"), "coverage": D["Observation"]["properties"]["coverage"],
+        "capture": D["Observation"]["properties"]["capture"]}),
+    "matchedNodeCount": {"type": "integer", "minimum": 0, "maximum": READ_RANGES["maxNodes"][1]}, "selectionUncertain": {"type": "boolean"}, "outputTruncated": {"type": "boolean"},
+    "records": arr(ref("ProjectedNode"), maxItems=PROJECTION_RANGES["maxRecords"][1]), "modelCalls": {"const": 0}, "operations": {"const": 0}
 })
 D["Binding"] = obj({
     "slotId": ID, "targetRef": ID, "observationId": ID,
@@ -136,14 +184,28 @@ SCHEMA = {
     "$id": "urn:ariadne:contracts:0.1",
     "title": "Ariadne v0.1 illustrative design contracts",
     "description": "Design draft. Shape validation is not authorization, freshness checking, or a desktop safety guarantee.",
-    "oneOf": [ref(n) for n in ("TaskSpec", "Observation", "PreparedOperation", "HostReceipt", "TaskResult", "Decision")],
+    "oneOf": [ref(n) for n in ("TaskSpec", "ReadSessionSpec", "ReadTaskSpec", "ReadTaskResult", "Observation", "PreparedOperation", "HostReceipt", "TaskResult", "Decision")],
     "$defs": D
 }
 
 def write(name, data):
     (ROOT / name).write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
+ts_limits = "// Generated by build_contracts.py. Do not edit directly.\n"
+for name, values in [("readLimitRanges", READ_RANGES), ("defaultReadLimits", READ_DEFAULTS),
+        ("projectionLimitRanges", PROJECTION_RANGES), ("defaultProjectionLimits", PROJECTION_DEFAULTS)]:
+    ts_limits += f"export const {name} = Object.freeze({json.dumps(values, indent=2)} as const);\n"
+(ROOT / "src/browser-limits.generated.ts").write_text(ts_limits)
+swift_limits = "// Generated by build_contracts.py. Do not edit directly.\nenum BrowserReadBudget {\n"
+for name, (lo, hi) in READ_RANGES.items():
+    swift_limits += f"    static let {name} = {lo}...{hi}\n"
+swift_limits += "}\n"
+(ROOT / "native/Sources/AriadneHost/BrowserReadBudget.generated.swift").write_text(swift_limits)
+
 write("contracts.schema.json", SCHEMA)
+write("examples/read-session.json", {"kind": "read_session", "schemaVersion": "0.1",
+    "readSessionId": "read-demo", "scopeRef": "scope-browser",
+    "limits": READ_DEFAULTS})
 
 TASK = {"kind": "task", "schemaVersion": "0.1", "taskId": "task-demo", "revision": 1,
     "goal": "連絡先フォームに指定したメールアドレスを入力し、対象と値を確認する。送信はしない。",
@@ -223,4 +285,33 @@ write("examples/jev-request.example.json", {
             "criteria": {"sufficient": "対応先を区別する材料がある。", "need_more": "追加の観測が必要。"}}
     }
 })
-print('Wrote schema and 7 illustrative example files.')
+# Projection examples are deliberately synthetic; digests bind these exact local fixtures.
+import hashlib
+def digest(value):
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+READ_TASK = {"kind": "read_task", "schemaVersion": "0.1", "taskId": "read-task-demo", "revision": 1,
+    "recipeId": "project-ax-text.v1", "completeness": "observed_region", "readSessionId": "read-demo",
+    "scopeRef": "scope-browser", "document": {"sessionEpoch": "session-read", "ref": "document-demo", "generation": 1},
+    "nativeRoles": ["AXStaticText"], "attributes": ["value"], "limits": {"maxRecords": 100, "maxOutputBytes": 262144}}
+READ_OBS = {"kind": "observation", "schemaVersion": "0.1", "observationId": "obs-read-demo",
+    "sessionEpoch": "session-read", "scopeRef": "scope-browser", "document": READ_TASK["document"],
+    "capture": {"startedMonoMs": 100, "endedMonoMs": 110, "eventSeqBefore": 0, "eventSeqAfter": 0, "consistency": "best_effort"},
+    "coverage": {"rootRef": "node-root", "status": "provider_exhausted", "omittedReasons": [], "nodeCount": 2},
+    "nodes": [
+        {"ref": "node-root", "parentRef": None, "role": "group", "nativeRole": "AXWebArea", "name": {"status": "available", "value": "Synthetic page"},
+         "value": {"status": "unsupported"}, "enabled": {"status": "available", "value": True}, "capabilities": []},
+        {"ref": "node-text", "parentRef": "node-root", "role": "text", "nativeRole": "AXStaticText", "name": {"status": "available", "value": ""},
+         "value": {"status": "available", "value": "架空🧵e\u0301"}, "enabled": {"status": "available", "value": True}, "capabilities": []}]}
+READ_RESULT = {"kind": "read_task_result", "schemaVersion": "0.1", "taskId": READ_TASK["taskId"], "taskRevision": 1,
+    "taskDigest": digest(READ_TASK), "recipeId": READ_TASK["recipeId"], "completeness": "observed_region", "mapping": "ax_node_attributes",
+    "status": "projected", "source": {"readSessionId": "read-demo", "scopeRef": "scope-browser", "observationId": READ_OBS["observationId"],
+        "observationDigest": digest(READ_OBS), "document": READ_OBS["document"], "coverage": READ_OBS["coverage"], "capture": READ_OBS["capture"]},
+    "matchedNodeCount": 1, "selectionUncertain": False, "outputTruncated": False, "records": [{"nodeRef": "node-text", "parentRef": "node-root", "nativeRole": "AXStaticText",
+        "attributes": [{"attribute": "value", "status": "available", "text": "架空🧵e\u0301", "evidence": {
+            "observationId": READ_OBS["observationId"], "nodeRef": "node-text", "attribute": "value", "start": 0, "end": 5, "unit": "unicode_scalar"}}]}],
+    "modelCalls": 0, "operations": 0}
+write("examples/read-task.json", READ_TASK)
+write("examples/read-observation.json", READ_OBS)
+write("examples/read-task-result.json", READ_RESULT)
+print('Wrote schema and 11 illustrative example files.')

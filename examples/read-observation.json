@@ -1,0 +1,64 @@
+{
+  "kind": "observation",
+  "schemaVersion": "0.1",
+  "observationId": "obs-read-demo",
+  "sessionEpoch": "session-read",
+  "scopeRef": "scope-browser",
+  "document": {
+    "sessionEpoch": "session-read",
+    "ref": "document-demo",
+    "generation": 1
+  },
+  "capture": {
+    "startedMonoMs": 100,
+    "endedMonoMs": 110,
+    "eventSeqBefore": 0,
+    "eventSeqAfter": 0,
+    "consistency": "best_effort"
+  },
+  "coverage": {
+    "rootRef": "node-root",
+    "status": "provider_exhausted",
+    "omittedReasons": [],
+    "nodeCount": 2
+  },
+  "nodes": [
+    {
+      "ref": "node-root",
+      "parentRef": null,
+      "role": "group",
+      "nativeRole": "AXWebArea",
+      "name": {
+        "status": "available",
+        "value": "Synthetic page"
+      },
+      "value": {
+        "status": "unsupported"
+      },
+      "enabled": {
+        "status": "available",
+        "value": true
+      },
+      "capabilities": []
+    },
+    {
+      "ref": "node-text",
+      "parentRef": "node-root",
+      "role": "text",
+      "nativeRole": "AXStaticText",
+      "name": {
+        "status": "available",
+        "value": ""
+      },
+      "value": {
+        "status": "available",
+        "value": "架空🧵é"
+      },
+      "enabled": {
+        "status": "available",
+        "value": true
+      },
+      "capabilities": []
+    }
+  ]
+}

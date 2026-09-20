@@ -1,16 +1,22 @@
-# Ariadne v0.1 — 実装に進むための設計案
+# Ariadne v0.1 — 観測から操作し、結果を検証する実行系
 
 作成日: 2026-09-20  
-状態: **設計案。ランタイム・ネイティブホストは未実装**  
+状態: **初期実装。Core・fake Host・Swift AX Host・Jev provider・CLI を実装し、専用 fixture の実 AX・Jev 統合を検証**
 対象: 小目標を、観測で裏付けられた短い操作へ変換し、結果を検証する実行系
 
-ローカル環境の準備と検証手順は [CONTRIBUTING.md](CONTRIBUTING.md) を参照。
+Task から独立した汎用ブラウザ読み取りセッションを追加した。Calendar 専用のコードを共通の `ariadne.chrome` profile に置き換え、origin・取得予算・文書世代を実行時に指定する。実 Chrome での結果と対応限界は [browser-read-status.md](docs/browser-read-status.md) を参照。
+
+サイト専用コードを原則増やさず、共通の観測と実行時の scope・Task を分離する。[Fable と検討した汎用化案](docs/browser-generalization-design.md) の第1段階と、第2段階の原文引用基盤を実装した。`browser extract` は AX の name/value を、元の観測・要素・属性・文字範囲とともに取り出す（[検証記録](docs/browser-extract-status.md)）。読み取り予算は [実ページと大規模な合成画面の測定](docs/browser-budget-sizing.md)に基づき、既定32,768要素・観測16 MiB・結果64 MiBへ拡大した。意味的な項目抽出と一般サイトでの入力・遷移は今後の段階である。
+
+ローカル環境と実行手順は [CONTRIBUTING.md](CONTRIBUTING.md)、実行証拠と対応限界は [development-status.md](docs/development-status.md) を参照。
+
+`npm ci && npm run demo` で fake Host の入力・検証を一巡する。Node.js 24 系が必要。native AX とモデル API は明示コマンドで別に実行する。
 
 ## 0. この資料に含まれるもの／含まれないもの
 
-この資料は、会話中のAriadne構想を具体化した提案である。ユーザーによる個々の仕様の承認、既存リポジトリへの反映、ネイティブ実装、実際のJev呼び出し、実機性能測定は行っていない。
+以下の設計は会話中の構想を具体化したもので、全アプリへの適合を示すものではない。初期実装と専用 fixture の実 AX・Jev 実呼出しを追加した。個々の設計案、実装済みの範囲、実行で確認した範囲は分けて記録する。独立 Chrome のローカル合成フォームでは AX 入力・読み戻し・URL 変更後の拒否を確認した（[記録](docs/browser-status.md)）。TextEdit profile は新規作業用文書で観測したが、この環境では本文の AXEnabled が unsupported のため変更を拒否する。
 
-同梱のJSON Schemaと例は、契約の形を確認するための小さい設計標本であり、ランタイム全体の完成したスキーマではない。`verify_contracts.py` は形と一部の参照整合性を検査する。観測の真実性、認可、対象の鮮度、クラッシュ復旧、GUIへの副作用は検査しない。例にあるトークン、成功記録、確率は架空のもの。ファイル群は、実機で採取した一つの連続トレースではない。
+同梱のJSON Schemaと例は、Task・ReadSessionSpec・ReadTaskSpec・ReadTaskResult 等9種類の契約の正本と架空の標本であり、grant、RPC、内部永続記録を含む全体のスキーマではない。`verify_contracts.py` は形と一部の参照整合性を検査する。観測の真実性、認可、対象の鮮度、クラッシュ復旧、GUIへの副作用は検査しない。例にあるトークン、成功記録、確率は架空のもの。ファイル群は、実機で採取した一つの連続トレースではない。
 
 ## 1. 事実として設計に使う前提
 
@@ -351,6 +357,8 @@ fixtureの正解状態や業務IDは試験ハーネスだけが読む。モデ�
 レシピが同じでもラベル・順序・所属が変わるタスクを解く。対象が不明なときに関連領域を追加取得できることを確認する。対応付け済みの複数欄を、不要なモデル呼び出しを挟まず入力する。
 
 ### P3：実アプリprofile
+
+現在の追加範囲は、Chrome の読み取り専用 adapter と実行時の origin scope。Task 不要の観測・領域指定・文書変更時の参照失効と、固定した ReadTask による属性の証拠付き引用を扱い、P2 の fixture 校正を一般サイトでの操作へ拡張していない（[検証記録](docs/browser-read-status.md)）。
 
 TextEdit等で、ユーザーが用意した新規の作業用文書への入力・読み戻しを試す。ただしAXでの直接設定が可能かはprobeで確認する。未対応ならunsupportedとして止め、任意キー操作へ黙って落ちない。
 

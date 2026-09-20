@@ -1,0 +1,16 @@
+name: Opt-in AX fixture acceptance
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  fixture:
+    # A logged-in dedicated Mac with AX permission; never run automatically on PRs.
+    runs-on: [self-hosted, macOS, ariadne-ax]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: swift build --package-path native --scratch-path .cache/swift
+      - run: npm run test:native

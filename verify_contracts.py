@@ -43,6 +43,14 @@ def cross_field_checks(data: dict[str, Any]) -> None:
         for check in checks:
             require(check["inputRef"] == slot_map[check["slotId"]]["inputRef"], "check must read the assigned input")
     elif kind == "observation":
+        if "document" in data:
+            require(data["document"]["sessionEpoch"] == data["sessionEpoch"], "document epoch mismatch")
+            require(all(not node["capabilities"] for node in data["nodes"]), "read observation exposes capabilities")
+            for node in data["nodes"]:
+                for key in ("name", "value", "enabled"):
+                    status = node[key]["status"]
+                    if status in ("error", "redacted"):
+                        require(data["coverage"]["status"] == "partial" and status in data["coverage"]["omittedReasons"], "read observation hides omitted attributes")
         c = data["capture"]
         require(c["endedMonoMs"] >= c["startedMonoMs"], "capture time reversed")
         require(c["eventSeqAfter"] >= c["eventSeqBefore"], "event sequence reversed")
@@ -73,6 +81,25 @@ def cross_field_checks(data: dict[str, Any]) -> None:
         require(len(checks) == len(data["checks"]), "duplicate result check ids")
         if data["status"] == "verified_success":
             require(set(data["requiredCheckIds"]) == set(checks), "required checks missing or changed")
+    elif kind == "read_task_result":
+        records = data["records"]
+        require(len({r["nodeRef"] for r in records}) == len(records), "duplicate projected nodes")
+        require(len(records) <= data["matchedNodeCount"], "projected count exceeds matches")
+        require(data["outputTruncated"] == (len(records) < data["matchedNodeCount"]), "projection truncation inconsistent")
+        coverage = data["source"]["coverage"]
+        require((coverage["status"] == "partial") == bool(coverage["omittedReasons"]), "projection coverage inconsistent")
+        partial = coverage["status"] == "partial" or data["selectionUncertain"]
+        expected = ("partial" if partial or data["outputTruncated"] else "projected") if data["matchedNodeCount"] else ("unknown" if partial else "no_match_in_observation")
+        require(data["status"] == expected, "projection status inconsistent")
+        for record in records:
+            attrs = record["attributes"]
+            require(len({a["attribute"] for a in attrs}) == len(attrs), "duplicate projected attributes")
+            for attr in attrs:
+                if attr["status"] == "available":
+                    require(all(not 0xD800 <= ord(c) <= 0xDFFF for c in attr["text"]), "ill-formed projected Unicode")
+                    evidence = attr["evidence"]
+                    require(evidence["observationId"] == data["source"]["observationId"] and evidence["nodeRef"] == record["nodeRef"] and evidence["attribute"] == attr["attribute"], "projection evidence mismatch")
+                    require(evidence["start"] == 0 and evidence["end"] == len(attr["text"]), "projection must quote full attribute")
 
 
 def validate(data: dict[str, Any]) -> None:
@@ -99,6 +126,22 @@ def main() -> None:
         cases.append({"test": path.name, "expected": "accept", "actual": "accept"})
 
     bad = [
+        ("read observation cannot hide redaction", changed("read-observation.json", lambda x: x["nodes"][1].update(value={"status": "redacted"}))),
+        ("projection cannot claim all records", changed("read-task.json", lambda x: x.update(completeness="all_records"))),
+        ("projection cannot add a semantic matcher", changed("read-task.json", lambda x: x.update(label="Email"))),
+        ("projection cannot filter missing roles as AX vocabulary", changed("read-task.json", lambda x: x.update(nativeRoles=["unknown"]))),
+        ("projection rejects duplicate attributes", changed("read-task.json", lambda x: x.update(attributes=["name", "name"]))),
+        ("projection record limit is bounded", changed("read-task.json", lambda x: x["limits"].update(maxRecords=65537))),
+        ("projection cannot call model", changed("read-task-result.json", lambda x: x.update(modelCalls=1))),
+        ("projection cannot dispatch operations", changed("read-task-result.json", lambda x: x.update(operations=1))),
+        ("projection cannot promote partial source", changed("read-task-result.json", lambda x: x["source"]["coverage"].update(status="partial", omittedReasons=["frame"]))),
+        ("projection cannot quote a different node", changed("read-task-result.json", lambda x: x["records"][0]["attributes"][0]["evidence"].update(nodeRef="other"))),
+        ("projection spans use Unicode scalars", changed("read-task-result.json", lambda x: x["records"][0]["attributes"][0]["evidence"].update(end=6))),
+        ("projection cannot replace literal with redacted", changed("read-task-result.json", lambda x: x["records"][0]["attributes"][0].update(status="redacted"))),
+        ("read session cannot carry Task slots", changed("read-session.json", lambda x: x.update(slots=[]))),
+        ("read node budget too large", changed("read-session.json", lambda x: x["limits"].update(maxNodes=65537))),
+        ("read budget cannot be fractional", changed("read-session.json", lambda x: x["limits"].update(maxCaptureMs=100.5))),
+        ("read byte budget too small", changed("read-session.json", lambda x: x["limits"].update(maxBytes=8191))),
         ("unknown task field", changed("task.json", lambda x: x.update(allowAllApps=True))),
         ("zero task revision", changed("task.json", lambda x: x.update(revision=0))),
         ("missing required checks", changed("task.json", lambda x: x.update(requiredChecks=[]))),

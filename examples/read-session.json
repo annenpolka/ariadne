@@ -1,0 +1,14 @@
+{
+  "kind": "read_session",
+  "schemaVersion": "0.1",
+  "readSessionId": "read-demo",
+  "scopeRef": "scope-browser",
+  "limits": {
+    "maxNodes": 32768,
+    "maxDepth": 128,
+    "maxBytes": 16777216,
+    "maxCaptureMs": 10000,
+    "maxCaptures": 10,
+    "deadlineMs": 60000
+  }
+}

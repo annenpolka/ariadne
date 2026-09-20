@@ -1,0 +1,9 @@
+{
+  "version": "synthetic-forms-v2",
+  "model": "jev-1.13.0",
+  "questionSetVersion": "binding-v2",
+  "scope": "fixture",
+  "minProbability": 0.8,
+  "minMargin": 0.2,
+  "maxAbstention": 0.1
+}
