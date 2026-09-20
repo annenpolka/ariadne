@@ -717,6 +717,101 @@ final class BrowserReadTarget {
         }
         return attributes
     }
+
+    /// Mechanical evidence for the separately authorized action session. This
+    /// object still exposes no mutation method and read captures stay capability-free.
+    struct ActionGuard {
+        let element: AXUIElement
+        let stamp: DocumentStamp
+        let node: [String: Any]
+        let nodes: [String: [String: Any]]
+        let kind: String
+        let fingerprint: String
+    }
+
+    private func actionName(_ element: AXUIElement, clock: AXClock) -> AttrValue<String> {
+        guard clock.arm(element) else { return .unavailable }
+        let title = readString(element, kAXTitleAttribute)
+        if let text = title.availableValue, !text.isEmpty { return text.utf16.count <= Self.maxAttributeUnits ? title : .redacted }
+        guard clock.arm(element) else { return .unavailable }
+        let description = readString(element, kAXDescriptionAttribute)
+        if let text = description.availableValue, !text.isEmpty { return text.utf16.count <= Self.maxAttributeUnits ? description : .redacted }
+        if title.availableValue != nil { return title }
+        if description.availableValue != nil { return description }
+        if title.statusName == "error" || description.statusName == "error" { return .error }
+        return title.statusName == "unsupported" && description.statusName == "unsupported" ? .unsupported : .unavailable
+    }
+
+    func guardAction(stamp: DocumentStamp, node: [String: Any], nodes: [String: [String: Any]],
+                     kind: String, policy: BrowserActionPolicy) throws -> ActionGuard {
+        let clock = AXClock(endMonoMs: monoNowMs() + 3000)
+        guard let current = document, current.ref == stamp.ref, current.generation == stamp.generation,
+              let ref = node["ref"] as? String, let element = current.refs.element(for: ref) else {
+            throw HostError(.staleBinding, "action reference expired")
+        }
+        do { try verify(current, clock: clock) } catch { invalidate(); throw error }
+        guard isInside(current, element, clock: clock), clock.arm(app),
+              let focusedWindow = asElement(copyAttribute(app, kAXFocusedWindowAttribute).1),
+              CFEqual(focusedWindow, window) else { throw HostError(.staleBinding, "action is outside focused page") }
+        // Native modal sheets belong to another surface. HTML dialogs remain in
+        // the document and are fenced by the focused element plus observed lineage.
+        if let sheets = asElementArray(copyAttribute(window, "AXSheets").1), !sheets.elements.isEmpty {
+            throw HostError(.staleBinding, "native modal present")
+        }
+        guard let role = node["nativeRole"] as? String,
+              (kind == "set_value" ? policy.setValueRoles : policy.invokeRoles).contains(role),
+              !isSecureElement(element) else { throw HostError(.unsupported, "role is not an authorized action control") }
+        let attrs = readAttributes(element, nativeRole: role, clock: clock)
+        guard attrs.complete, attrs.enabled.availableValue == true, attrs.value.statusName != "redacted",
+              NSDictionary(dictionary: attrs.name.json({ $0 })).isEqual(node["name"]),
+              NSDictionary(dictionary: attrs.value.json({ $0 })).isEqual(node["value"]),
+              NSDictionary(dictionary: attrs.enabled.json({ $0 })).isEqual(node["enabled"]) else {
+            throw HostError(.staleBinding, "action attributes changed")
+        }
+        var lineage: [[String: Any]] = []
+        var next = element
+        var seen = ElementSet()
+        for _ in 0...BrowserReadBudget.maxDepth.upperBound {
+            guard seen.insert(next), clock.arm(next) else { throw HostError(.staleBinding, "incomplete action lineage") }
+            let nextRef = current.refs.ref(for: next)
+            guard let observed = nodes[nextRef], let nativeRole = readString(next, kAXRoleAttribute).availableValue,
+                  nativeRole == observed["nativeRole"] as? String else { throw HostError(.staleBinding, "action lineage changed") }
+            let liveName = actionName(next, clock: clock).json({ $0 })
+            guard NSDictionary(dictionary: liveName).isEqual(observed["name"]) else { throw HostError(.staleBinding, "action lineage name changed") }
+            lineage.append(["ref": nextRef, "role": nativeRole, "name": liveName])
+            if CFEqual(next, current.webArea) { break }
+            guard nativeRole != "AXWebArea", let parent = asElement(copyAttribute(next, kAXParentAttribute).1),
+                  let expected = observed["parentRef"] as? String,
+                  let parentElement = current.refs.element(for: expected), CFEqual(parent, parentElement) else {
+                throw HostError(.staleBinding, "action parent changed")
+            }
+            next = parent
+        }
+        guard CFEqual(next, current.webArea), clock.remainingMs > 0 else { throw HostError(.staleBinding, "action lineage outside document") }
+        if kind == "set_value" {
+            var settable = DarwinBoolean(false)
+            guard attrs.value.availableValue != nil,
+                  AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success,
+                  settable.boolValue else { throw HostError(.unsupported, "AXValue is not settable") }
+        } else {
+            var actions: CFArray?
+            guard AXUIElementCopyActionNames(element, &actions) == .success,
+                  (actions as? [String])?.contains(kAXPressAction) == true else { throw HostError(.unsupported, "AXPress is not available") }
+        }
+        guard clock.arm(app) else { throw HostError(.staleBinding, "focus budget exhausted") }
+        let focused = asElement(copyAttribute(app, kAXFocusedUIElementAttribute).1)
+        let fingerprint = digestJSON(["lineage": lineage, "focused": focused.map { current.refs.ref(for: $0) } ?? "none",
+                                      "value": attrs.value.json({ $0 }), "enabled": attrs.enabled.json({ $0 })])
+        return ActionGuard(element: element, stamp: stamp, node: node, nodes: nodes, kind: kind, fingerprint: fingerprint)
+    }
+
+    func validateAction(_ guardInfo: ActionGuard, policy: BrowserActionPolicy) throws {
+        let live = try guardAction(stamp: guardInfo.stamp, node: guardInfo.node, nodes: guardInfo.nodes,
+                                   kind: guardInfo.kind, policy: policy)
+        guard CFEqual(live.element, guardInfo.element), live.fingerprint == guardInfo.fingerprint else {
+            throw HostError(.staleBinding, "prepared action context changed")
+        }
+    }
 }
 
 extension AttrValue {

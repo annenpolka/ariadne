@@ -11,6 +11,8 @@ import { browserOrigin, canonicalOrigin, chromeAppId, defaultReadLimits, validat
 import { validateGrant } from './grants.js';
 import { runReadTask } from './read-task.js';
 import { defaultProjectionLimits } from './browser-limits.generated.js';
+import { browserActionConsole } from './browser-actions.js';
+import type { BrowserActionTask } from './contracts.js';
 import type { ScopeGrant, ReadSessionSpec, ReadTaskSpec, TextAttribute } from './contracts.js';
 
 const chromeExecutable = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -24,9 +26,11 @@ async function main() {
     'max-capture-ms': { type: 'string' },
     role: { type: 'string', multiple: true }, attribute: { type: 'string', multiple: true },
     'max-records': { type: 'string' }, 'max-output-bytes': { type: 'string' },
+    task: { type: 'string' }, grant: { type: 'string' },
   } });
   const [command, target] = positionals;
-  if (positionals.length !== 2 || !['open', 'read', 'extract', 'status'].includes(command ?? '')) throw new Error('Usage: npm run browser -- open URL | status SESSION_DIR --origin ORIGIN | read|extract SESSION_DIR --origin ORIGIN [--raw] [--record] [--max-nodes N] [--max-depth N] [--max-bytes N] [--max-capture-ms N]; extract also accepts [--role AXStaticText] [--attribute name|value] [--max-records N] [--max-output-bytes N]');
+  if (positionals.length !== 2 || !['open', 'read', 'extract', 'status', 'act'].includes(command ?? '')) throw new Error('Usage: npm run browser -- open URL | status SESSION_DIR --origin ORIGIN | read|extract SESSION_DIR --origin ORIGIN [--raw] [--record] [--max-nodes N] [--max-depth N] [--max-bytes N] [--max-capture-ms N] | act SESSION_DIR --origin ORIGIN --task FILE --grant FILE [--raw] [--record]; extract also accepts [--role AXStaticText] [--attribute name|value] [--max-records N] [--max-output-bytes N]');
+  if (command !== 'act' && (values.task || values.grant)) throw new Error('Task and grant options require act');
   if (command !== 'extract' && ['role', 'attribute', 'max-records', 'max-output-bytes'].some(key => Object.hasOwn(values, key))) throw new Error('Projection options require extract');
   const attributes = values.attribute ?? ['name', 'value'];
   if (attributes.some(a => a !== 'name' && a !== 'value')) throw new Error('Only name/value attributes can be projected');
@@ -59,6 +63,19 @@ async function main() {
   }
   if (!selected.title || !selected.url || selected.pid !== launch.pid || !origins.includes(browserOrigin(selected.url) ?? '')) throw new Error('Browser window is outside the requested scope');
   if (command === 'status') { process.stdout.write(JSON.stringify({ status: 'browser_window', pid: launch.pid }) + '\n'); return; }
+  if (command === 'act') {
+    if (!values.task || !values.grant || Object.keys(values).some(k => !['origin', 'task', 'grant', 'raw', 'record'].includes(k))) throw new Error('act requires explicit task and operator grant files');
+    const task = JSON.parse(readFileSync(values.task, 'utf8')) as BrowserActionTask;
+    const grant = JSON.parse(readFileSync(values.grant, 'utf8')) as ScopeGrant;
+    validateGrant(grant);
+    if (!grant.act || grant.appId !== chromeAppId || !grant.pageScope || origins.length !== grant.pageScope.origins.length || origins.some(o => !grant.pageScope!.origins.includes(o))) throw new Error('CLI origins differ from action grant');
+    // One stable journal per dedicated profile, shared with read sessions. Task
+    // and origin changes never create a fresh journal to escape an unknown.
+    const host = new RpcHost({ executable: resolve('.cache/swift/debug/AriadneHost'), args: ['--pid', String(launch.pid), '--window-title', selected.title, '--page-url', selected.url, '--grant', resolve(values.grant), '--journal', join(root, 'read-host.jsonl')] });
+    try { await browserActionConsole(host, task, grant, join(root, `act-${task.taskId}-${task.revision}`), { raw: !!values.raw, record: !!values.record }); }
+    finally { await host.close(); }
+    return;
+  }
   const limits = { ...defaultReadLimits,
     ...(values['max-nodes'] === undefined ? {} : { maxNodes: Number(values['max-nodes']) }),
     ...(values['max-depth'] === undefined ? {} : { maxDepth: Number(values['max-depth']) }),

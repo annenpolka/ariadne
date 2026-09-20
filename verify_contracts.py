@@ -30,7 +30,13 @@ def require(test: bool, message: str) -> None:
 def cross_field_checks(data: dict[str, Any]) -> None:
     """Small, explicit rules JSON Schema alone does not express here."""
     kind = data["kind"]
-    if kind == "task":
+    if kind == "browser_action_task":
+        require(len({s["id"] for s in data["steps"]}) == len(data["steps"]), "duplicate action step")
+        require(len({c["id"] for c in data["requiredChecks"]}) == len(data["requiredChecks"]), "duplicate action check")
+        for step in data["steps"]:
+            if step["kind"] == "set_value":
+                require(step["inputRef"] in data["inputs"], "unknown action input")
+    elif kind == "task":
         slots = data["slots"]
         slot_map = {s["id"]: s for s in slots}
         require(len(slot_map) == len(slots), "duplicate slot ids")
@@ -126,6 +132,10 @@ def main() -> None:
         cases.append({"test": path.name, "expected": "accept", "actual": "accept"})
 
     bad = [
+        ("action step unknown input", changed("browser-action-task.json", lambda x: x["steps"][0].update(inputRef="missing"))),
+        ("action duplicate step", changed("browser-action-task.json", lambda x: x["steps"].append(x["steps"][0]))),
+        ("action fixed checks required", changed("browser-action-task.json", lambda x: x.update(requiredChecks=[]))),
+        ("action invoke cannot carry arbitrary data", changed("browser-action-task.json", lambda x: x["steps"][1].update(value="invented"))),
         ("read observation cannot hide redaction", changed("read-observation.json", lambda x: x["nodes"][1].update(value={"status": "redacted"}))),
         ("projection cannot claim all records", changed("read-task.json", lambda x: x.update(completeness="all_records"))),
         ("projection cannot add a semantic matcher", changed("read-task.json", lambda x: x.update(label="Email"))),

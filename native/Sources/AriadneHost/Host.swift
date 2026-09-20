@@ -120,6 +120,7 @@ final class Host {
     private var readTarget: BrowserReadTarget?
     private var readDeadlineMonoMs = 0
     private var readCapturesUsed = 0
+    private var browserActions: BrowserActionSession?
 
     init(pid: pid_t, windowTitle: String, grant: ScopeGrant, journalPath: String,
          control: ControlState, documentPath: String?, pageURL: String? = nil) throws {
@@ -147,7 +148,7 @@ final class Host {
     // MARK: Protocol methods
 
     func hello() -> [String: Any] {
-        var capabilities = grant.appId == AppProfile.chromeId ? [] : ["set_value"]
+        var capabilities = grant.appId == AppProfile.chromeId ? (grant.act ? grant.allowedCommands : []) : ["set_value"]
         if grant.appId == AppProfile.fixtureId, grant.allowedCommands.contains("invoke") {
             capabilities.append("invoke")
         }
@@ -477,55 +478,21 @@ final class Host {
             return (remember(drifted), false)
         }
 
-        // Fixture-only deterministic failure immediately before intent sync.
-        if faults.journalError {
-            throw HostError(.journalError, "injected journal failure before intent")
-        }
-        let intent = receipt(operationId, "dispatch_intent", "none")
-        try journal.append(["type": "intent", "taskId": stored.guardInfo.taskId,
-                            "taskRevision": stored.guardInfo.taskRevision,
-                            "scopeRef": stored.guardInfo.scopeRef, "operationId": operationId,
-                            "requestDigest": stored.digest, "receipt": intent])
-        if faults.afterIntent { exit(70) }
-
-        // All guard AX reads happen first; the control generation is then
-        // rechecked immediately before the dispatch boundary. A late cancel
-        // after persisted intent leaves the operation unknown, never a retry.
-        let driftAfterIntent = preflight(stored) != nil
-        let (generation, cancelled, closed) = control.snapshot()
-        if cancelled || closed || generation != stored.guardInfo.controlEpoch {
-            let unknown = receipt(operationId, "outcome_unknown", "host_lost")
-            try? journal.append(["type": "receipt", "operationId": operationId, "receipt": unknown])
-            return (remember(unknown), false)
-        }
-        if driftAfterIntent {
-            let unknown = receipt(operationId, "outcome_unknown", "precondition_changed")
-            try? journal.append(["type": "receipt", "operationId": operationId, "receipt": unknown])
-            return (remember(unknown), false)
-        }
-
-        let error: AXError
-        if stored.guardInfo.commandKind == "invoke" {
-            error = target?.performPress(stored.guardInfo.targetElement) ?? .invalidUIElement
-        } else {
-            error = target?.setValue(stored.guardInfo.targetElement, stored.guardInfo.newValue) ?? .invalidUIElement
-        }
-        guard error == .success else {
-            let unknown = receipt(operationId, "outcome_unknown", "driver_error")
-            try? journal.append(["type": "receipt", "operationId": operationId, "receipt": unknown])
-            return (remember(unknown), false)
-        }
-        if faults.afterDispatch { exit(70) }
-
-        let attempted = receipt(operationId, "attempted", "none")
-        do {
-            try journal.append(["type": "receipt", "operationId": operationId, "receipt": attempted])
-        } catch {
-            let unknown = receipt(operationId, "outcome_unknown", "journal_error")
-            try? journal.append(["type": "receipt", "operationId": operationId, "receipt": unknown])
-            return (remember(unknown), false)
-        }
-        return (remember(attempted), shouldSuppress(operationId, attempted))
+        let result = try journaledDispatch(journal: journal, taskId: stored.guardInfo.taskId,
+            revision: stored.guardInfo.taskRevision, scopeRef: stored.guardInfo.scopeRef,
+            operationId: operationId, digest: stored.digest, faults: faults,
+            receipt: { self.receipt(operationId, $0, $1) }, recheck: {
+                let drift = self.preflight(stored) != nil
+                let (generation, cancelled, closed) = self.control.snapshot()
+                if cancelled || closed || generation != stored.guardInfo.controlEpoch { return "host_lost" }
+                return drift ? "precondition_changed" : nil
+            }, dispatch: {
+                if stored.guardInfo.commandKind == "invoke" {
+                    return self.target?.performPress(stored.guardInfo.targetElement) ?? .invalidUIElement
+                }
+                return self.target?.setValue(stored.guardInfo.targetElement, stored.guardInfo.newValue) ?? .invalidUIElement
+            })
+        return (remember(result), shouldSuppress(operationId, result))
     }
 
     func status(_ operationId: String) throws -> Any {
@@ -539,6 +506,37 @@ final class Host {
     func close() { control.close() }
 
     // MARK: Generic read session
+
+    func openActionSession(_ object: JSONObject, admittedGeneration: Int) throws -> [String: Any] {
+        try requireNotCancelled(admittedGeneration)
+        guard grant.appId == AppProfile.chromeId, grant.act, grant.read, !grant.model,
+              let policy = grant.actionPolicy, let scope = grant.pageScope, let pageURL,
+              !readOpenAttempted else { throw HostError(.scopeDenied, "action session is not granted or already opened") }
+        let task = try BrowserActionTask.parse(object.raw)
+        guard NSDictionary(dictionary: task.raw).isEqual(to: policy.task.raw) else { throw HostError(.scopeDenied, "task differs from operator grant") }
+        readOpenAttempted = true
+        let resolved = try BrowserReadTarget.resolve(pid: pid, windowTitle: windowTitle, pageURL: pageURL, allowedOrigins: scope.origins)
+        let action = try BrowserActionSession(task: task, grant: grant, target: resolved, journal: journal, control: control, epoch: epoch)
+        try requireNotCancelled(admittedGeneration)
+        guard let stamp = resolved.stamp(sessionEpoch: epoch) else { throw HostError(.staleBinding, "no document") }
+        readTarget = resolved
+        readSpec = ReadSessionSpec(readSessionId: task.taskId, scopeRef: task.scopeRef, limits: task.limits)
+        readDeadlineMonoMs = action.deadlineMonoMs
+        browserActions = action
+        return ["sessionEpoch": epoch, "controlEpoch": control.generation, "scopeRef": grant.scopeRef,
+                "grantRef": grant.grantRef, "grantVersion": grant.version, "document": stamp.json,
+                "unresolvedOperationIds": action.unresolved, "attemptedStepIds": action.attemptedSteps]
+    }
+
+    func prepareAction(_ params: JSONObject) throws -> [String: Any] {
+        guard let action = browserActions else { throw HostError(.scopeDenied, "no browser action session") }
+        return try action.prepare(params)
+    }
+
+    func commitAction(_ preparedId: String) throws -> [String: Any] {
+        guard let action = browserActions else { throw HostError(.scopeDenied, "no browser action session") }
+        return try action.commit(preparedId)
+    }
 
     /// Opens the single Task-free read session of this host. No Task is
     /// recorded and the journal is only read: unresolved operations of the
@@ -597,6 +595,7 @@ final class Host {
     /// capture count are untouched.
     func refreshPage(admittedGeneration: Int) throws -> [String: Any] {
         let (_, target) = try requireReadActive(admittedGeneration)
+        browserActions?.invalidate()
         try target.refresh()
         try requireNotCancelled(admittedGeneration)
         guard monoNowMs() < readDeadlineMonoMs else {
@@ -669,6 +668,7 @@ final class Host {
         // A cancel admitted while the capture was in flight wins over success.
         try requireNotCancelled(admittedGeneration)
         guard monoNowMs() < readDeadlineMonoMs else { throw HostError(.scopeDenied, "read session deadline exhausted during capture") }
+        browserActions?.observed(observation)
         return observation
     }
 

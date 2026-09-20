@@ -51,7 +51,23 @@ export interface Decision {
   observationId: string; questionSetVersion: string; questionId: string; providerModel: string; stateDigest: string;
   options: string[]; selected: string; probabilities: Record<string, number>; confidence: number;
 }
-export type Contract = TaskSpec | ReadSessionSpec | ReadTaskSpec | ReadTaskResult | Observation | PreparedOperation | HostReceipt | TaskResult | Decision;
+export type Contract = TaskSpec | BrowserActionTask | ReadSessionSpec | ReadTaskSpec | ReadTaskResult | Observation | PreparedOperation | HostReceipt | TaskResult | Decision;
+
+/** Fixed operator task. Targets are selected from fresh observations, never from stored selectors. */
+export interface BrowserActionTask {
+  kind: 'browser_action_task'; schemaVersion: '0.1'; recipeId: 'browser-actions.v1';
+  taskId: string; revision: number; scopeRef: string; goal: string;
+  inputs: Record<string, string>;
+  steps: ({ id: string; purpose: string; kind: 'invoke' } | { id: string; purpose: string; kind: 'set_value'; inputRef: string })[];
+  requiredChecks: { id: string; attribute: 'name' | 'value'; text: string; match: 'equals' | 'contains' }[];
+  limits: ReadLimits;
+}
+export interface BrowserActionPolicy {
+  task: BrowserActionTask;
+  setValueRoles: string[];
+  invokeRoles: string[];
+}
+export interface BrowserActionSession extends ReadSession { attemptedStepIds: string[] }
 
 export type TextAttribute = 'name' | 'value';
 /** Literal projection only. Role filters are AX vocabulary, never semantic field names. */
@@ -104,6 +120,7 @@ export interface ReadHost {
 export interface ScopeGrant {
   scopeRef: string; grantRef: string; version: number; read: boolean; model: boolean; act: boolean;
   allowedCommands: Capability[]; appId: string; windowRef: string; limits: Budgets;
+  actionPolicy?: BrowserActionPolicy;
   allowedActions?: ('fixture.submit' | 'fixture.replace_field' | 'fixture.show_modal')[];
   pageScope?: PageScope;
   readLimits?: ReadLimits;

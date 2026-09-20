@@ -11,6 +11,12 @@ export function validateContract(value: unknown): asserts value is Contract {
   if (!check(value)) throw new Error(`Invalid contract: ${ajv.errorsText(check.errors)}`);
   const data = value as Contract;
   switch (data.kind) {
+    case 'browser_action_task': {
+      require(new Set(data.steps.map(s => s.id)).size === data.steps.length, 'duplicate action steps');
+      require(new Set(data.requiredChecks.map(c => c.id)).size === data.requiredChecks.length, 'duplicate action checks');
+      for (const step of data.steps) if (step.kind === 'set_value') require(Object.hasOwn(data.inputs, step.inputRef), 'unknown action input');
+      break;
+    }
     case 'task': {
       const slots = new Map(data.slots.map(s => [s.id, s]));
       require(slots.size === data.slots.length, 'duplicate slot ids');

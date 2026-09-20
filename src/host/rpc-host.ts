@@ -1,8 +1,14 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { isDeepStrictEqual } from 'node:util';
+import { createHash } from 'node:crypto';
 import { HostError, type Capability, type Host, type HostReceipt, type Observation, type ObservationQuery, type PreparedOperation, type PrepareRequest, type Session, type TaskSpec } from '../contracts.js';
 import { validateContract } from '../validation.js';
 import type { DocumentStamp, ReadHost, ReadObservation, ReadSession, ReadSessionSpec } from '../contracts.js';
+import type { BrowserActionTask, BrowserActionSession } from '../contracts.js';
+
+export function browserOperationId(task: BrowserActionTask, stepId: string): string {
+  return 'a-' + createHash('sha256').update(`${task.taskId}#${task.revision}#${stepId}`).digest('hex');
+}
 
 export interface RpcHostOptions {
   executable: string;
@@ -35,7 +41,10 @@ export class RpcHost implements Host, ReadHost {
   private readonly exited: Promise<void>;
   private helloEpoch: string | undefined;
   capabilities: readonly Capability[] = [];
-  private mode: 'task' | 'read' | undefined;
+  private mode: 'task' | 'read' | 'act' | undefined;
+  private actionTask: BrowserActionTask | undefined;
+  private actionObservation: ReadObservation | undefined;
+  private actionPrepared = new Map<string, PreparedOperation>();
   private readSpec: ReadSessionSpec | undefined;
   private document: DocumentStamp | undefined;
   private documentGeneration = 0;
@@ -64,7 +73,7 @@ export class RpcHost implements Host, ReadHost {
     void this.ready.catch(() => undefined);
   }
   async openSession(task: TaskSpec): Promise<Session> {
-    if (this.mode === 'read') throw new HostError('scope_denied', 'Read session cannot open a Task');
+    if (this.mode === 'read' || this.mode === 'act') throw new HostError('scope_denied', 'Browser session cannot open a legacy Task');
     this.mode = 'task';
     validateContract(task); await this.ready;
     const value = await this.request('session.open', { task });
@@ -92,6 +101,7 @@ export class RpcHost implements Host, ReadHost {
     if (!this.readSpec || this.readStopped) throw new HostError('scope_denied', 'No active read session');
     await this.ready;
     this.document = undefined;
+    this.actionObservation = undefined;
     const revision = ++this.readRevision;
     const document = this.checkDocument(await this.request('page.refresh', {}));
     this.checkReadRevision(revision);
@@ -115,7 +125,44 @@ export class RpcHost implements Host, ReadHost {
     this.checkReadRevision(revision);
     if (value.sessionEpoch !== this.helloEpoch || value.scopeRef !== this.readSpec.scopeRef || !isDeepStrictEqual(value.document, expected)) throw new HostError('stale_binding', 'Foreign read observation');
     if (value.nodes.some(node => node.capabilities.length) || value.nodes.length > this.readSpec.limits.maxNodes || Buffer.byteLength(JSON.stringify(value)) > this.readSpec.limits.maxBytes || (rootRef !== undefined && value.coverage.rootRef !== rootRef) || value.nodes.find(n => n.ref === value.coverage.rootRef)?.parentRef !== null) throw new HostError('invalid_request', 'Read observation violates limits or region');
+    if (this.mode === 'act') this.actionObservation = structuredClone(value);
     return value;
+  }
+  async openAct(task: BrowserActionTask): Promise<BrowserActionSession> {
+    validateContract(task);
+    if (task.kind !== 'browser_action_task' || this.mode !== undefined || this.readStopped) throw new HostError('scope_denied', 'Action session cannot be reopened');
+    this.mode = 'act'; this.actionTask = structuredClone(task);
+    this.readSpec = { kind: 'read_session', schemaVersion: '0.1', readSessionId: task.taskId, scopeRef: task.scopeRef, limits: structuredClone(task.limits) };
+    if (!this.explicitMaxBytes) this.maxBytes = Math.max(this.maxBytes, task.limits.maxBytes + 64 * 1024);
+    await this.ready;
+    const revision = this.readRevision;
+    const value = await this.request('session.openAct', { task: this.actionTask });
+    if (!object(value) || !keys(value, ['sessionEpoch', 'controlEpoch', 'scopeRef', 'grantRef', 'grantVersion', 'document', 'unresolvedOperationIds', 'attemptedStepIds']) || value.sessionEpoch !== this.helloEpoch || value.scopeRef !== task.scopeRef || !id(value.grantRef) || !Number.isSafeInteger(value.controlEpoch) || (value.controlEpoch as number) < 0 || !Number.isSafeInteger(value.grantVersion) || (value.grantVersion as number) < 1 || !Array.isArray(value.unresolvedOperationIds) || !value.unresolvedOperationIds.every(id) || !Array.isArray(value.attemptedStepIds) || value.attemptedStepIds.some((s, i) => s !== task.steps[i]?.id)) throw new HostError('invalid_request', 'Invalid action session');
+    const document = this.checkDocument(value.document);
+    this.checkReadRevision(revision);
+    this.document = structuredClone(document); this.documentGeneration = document.generation;
+    return value as unknown as BrowserActionSession;
+  }
+  async prepareAction(stepId: string, observationId: string, targetRef: string): Promise<PreparedOperation> {
+    const task = this.actionTask, observation = this.actionObservation;
+    if (this.mode !== 'act' || !task || this.readStopped) throw new HostError('scope_denied', 'No action session');
+    const step = task.steps.find(s => s.id === stepId);
+    if (!step || !observation || observation.observationId !== observationId || !observation.nodes.some(n => n.ref === targetRef) || !isDeepStrictEqual(observation.document, this.document)) throw new HostError('stale_binding', 'Action requires a fresh bound observation');
+    const revision = this.readRevision;
+    const p = this.contract<PreparedOperation>(await this.request('action.prepare', { stepId, observationId, targetRef }), 'prepared_operation');
+    this.checkReadRevision(revision);
+    const command = step.kind === 'set_value' ? { kind: 'set_value', targetRef, value: task.inputs[step.inputRef] } : { kind: 'invoke', targetRef };
+    if (p.operationId !== browserOperationId(task, stepId) || p.taskId !== task.taskId || p.taskRevision !== task.revision || p.sessionEpoch !== this.helloEpoch || p.scopeRef !== task.scopeRef || p.originObservationId !== observationId || p.binding.slotId !== stepId || p.binding.source !== 'operator' || p.binding.targetRef !== targetRef || !isDeepStrictEqual(p.command, command) || p.binding.evidence.some(e => e.nodeRef !== targetRef)) throw new HostError('invalid_request', 'Host changed proposed browser action');
+    this.actionPrepared.set(p.preparedId, structuredClone(p));
+    return p;
+  }
+  async commitAction(preparedId: string): Promise<HostReceipt> {
+    const p = this.actionPrepared.get(preparedId);
+    if (this.mode !== 'act' || this.readStopped || !p) throw new HostError('scope_denied', 'Unknown browser preparation');
+    this.actionObservation = undefined;
+    const receipt = this.contract<HostReceipt>(await this.request('action.commit', { preparedId }, this.explicitTimeout ? this.timeoutMs : 30000), 'host_receipt');
+    if (receipt.operationId !== p.operationId || receipt.sessionEpoch !== p.sessionEpoch) throw new HostError('invalid_request', 'Foreign browser receipt');
+    return receipt;
   }
   private checkDocument(value: unknown): DocumentStamp {
     if (!object(value) || !keys(value, ['sessionEpoch', 'ref', 'generation']) || value['sessionEpoch'] !== this.helloEpoch || !id(value['ref']) || !Number.isSafeInteger(value['generation']) || (value['generation'] as number) < 1) throw new HostError('invalid_request', 'Invalid document stamp');
@@ -126,14 +173,14 @@ export class RpcHost implements Host, ReadHost {
     if (revision !== this.readRevision) throw new HostError('stale_binding', 'Read superseded by refresh');
   }
   async capture(query: ObservationQuery = 'editable_fields'): Promise<Observation> {
-    if (this.mode === 'read') throw new HostError('scope_denied', 'Read session requires a document reference');
+    if (this.mode === 'read' || this.mode === 'act') throw new HostError('scope_denied', 'Browser session requires a document reference');
     await this.ready; const value = this.contract<Observation>(await this.request('observation.capture', { query }), 'observation');
     if (value.sessionEpoch !== this.helloEpoch) throw new HostError('stale_session', 'Foreign observation epoch');
     if (value.document !== undefined) throw new HostError('invalid_request', 'Task capture cannot return a read-session observation');
     return value;
   }
   async prepare(request: PrepareRequest): Promise<PreparedOperation> {
-    if (this.mode === 'read') throw new HostError('scope_denied', 'Read session cannot prepare');
+    if (this.mode === 'read' || this.mode === 'act') throw new HostError('scope_denied', 'Browser session cannot prepare a legacy operation');
     await this.ready; const value = this.contract<PreparedOperation>(await this.request('operation.prepare', request), 'prepared_operation');
     if (value.operationId !== request.operationId || value.taskId !== request.taskId || value.taskRevision !== request.taskRevision || value.sessionEpoch !== request.sessionEpoch || !isDeepStrictEqual(value.command, request.command) || !isDeepStrictEqual(value.binding, request.binding)) throw new HostError('invalid_request', 'Host changed the prepared operation');
     return value;

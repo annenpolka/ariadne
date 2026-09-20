@@ -294,12 +294,13 @@ struct ScopeGrant {
     /// Present only for the generic Chrome profile.
     var pageScope: PageScope?
     var readLimits: ReadLimits?
+    var actionPolicy: BrowserActionPolicy?
 
     static func parse(_ any: Any) throws -> ScopeGrant {
         let object = try JSONObject(any)
         try object.requireOnly(["scopeRef", "grantRef", "version", "read", "model", "act",
                                 "allowedCommands", "allowedActions", "appId", "windowRef", "limits",
-                                "pageScope", "readLimits"])
+                                "pageScope", "readLimits", "actionPolicy"])
         try object.require(["scopeRef", "grantRef", "version", "read", "model", "act",
                             "allowedCommands", "appId", "windowRef", "limits"])
         var allowedActions: [String] = []
@@ -340,7 +341,8 @@ struct ScopeGrant {
                                appId: try object.string("appId"),
                                windowRef: try object.string("windowRef"),
                                limits: try Limits.parse(try object.object("limits")),
-                               pageScope: pageScope, readLimits: readLimits)
+                               pageScope: pageScope, readLimits: readLimits,
+                               actionPolicy: object.has("actionPolicy") ? try BrowserActionPolicy.parse(object.object("actionPolicy").raw) : nil)
         guard isValidId(grant.scopeRef), isValidId(grant.grantRef), isValidId(grant.windowRef) else {
             throw ShapeFailure.shape("invalid grant id")
         }
@@ -351,11 +353,23 @@ struct ScopeGrant {
             throw ShapeFailure.shape("unsupported command in grant")
         }
         if grant.appId == AppProfile.chromeId {
-            guard grant.read, !grant.model, !grant.act,
-                  grant.allowedCommands.isEmpty, grant.allowedActions.isEmpty,
-                  grant.limits.maxOperations == 0, grant.limits.maxSemanticRequests == 0 else {
-                throw ShapeFailure.shape("generic Chrome profile requires a read-only, model-free grant")
+            guard grant.read, !grant.model, grant.allowedActions.isEmpty, grant.limits.maxSemanticRequests == 0 else {
+                throw ShapeFailure.shape("browser grant requires model-free observation")
             }
+            if grant.act {
+                guard let policy = grant.actionPolicy, let ceiling = readLimits,
+                      policy.task.scopeRef == grant.scopeRef, policy.task.limits.isWithin(ceiling),
+                      policy.task.steps.count <= grant.limits.maxOperations,
+                      policy.task.limits.deadlineMs <= grant.limits.deadlineMs,
+                      policy.task.steps.allSatisfy({ grant.allowedCommands.contains($0.kind) }) else {
+                    throw ShapeFailure.shape("browser action task exceeds grant")
+                }
+            } else {
+                guard grant.actionPolicy == nil, grant.allowedCommands.isEmpty, grant.limits.maxOperations == 0 else {
+                    throw ShapeFailure.shape("read-only browser grant has action authority")
+                }
+            }
+        } else if grant.actionPolicy != nil { throw ShapeFailure.shape("action policy is browser-only")
         }
         return grant
     }

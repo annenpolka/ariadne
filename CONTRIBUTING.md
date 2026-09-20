@@ -61,7 +61,7 @@ npm run test:browser -- --demo
 
 試験ごとに `.runtime/browser-*/profile/` を新規作成し、`--user-data-dir` で独立した Chrome プロセスを起動する。既存のログイン・Cookie・拡張機能をコピーしない。専用 localhost サーバーが合成フォームを提供し、Host が AX で2欄に入力する。ページ側の値も独立に照合し、無効欄・パスワード欄・URL 変更後の操作拒否を確認する。終了時に専用ブラウザとサーバーを停止し、プロファイルと記録をローカルに残す。
 
-この試験は exact label provider を使う。ブラウザの画面・入力値をモデルへ送る試験ではない。Host の登録名は `ariadne.chrome_fixture`、CLI では `--host macos --pid PID --window-title EXACT_TITLE --page-url http://127.0.0.1:PORT/path` と対応する operator grant を指定する。URL はポート付き loopback HTTP の完全一致に限定し、query・fragment・認証情報を拒否する。実行中も window の AXDocument、WebArea の URL と native identity を確認する。一般サイトへの入力や browser invoke は未対応。読み取り専用の共通 profile は次節を参照。
+この試験は exact label provider を使う。ブラウザの画面・入力値をモデルへ送る試験ではない。Host の登録名は `ariadne.chrome_fixture`、CLI では `--host macos --pid PID --window-title EXACT_TITLE --page-url http://127.0.0.1:PORT/path` と対応する operator grant を指定する。URL はポート付き loopback HTTP の完全一致に限定し、query・fragment・認証情報を拒否する。実行中も window の AXDocument、WebArea の URL と native identity を確認する。この fixture profile は一般サイトには使用しない。共通 profile の読み取りと、固定 Task のもとでの入力・invoke は以下を参照。
 
 `--demo` は新しい通常ウィンドウで2欄の入力・読み戻しまで実行し、操作 Host を閉じて画面を残す。URL を変更する拒否試験はこのモードでは行わない。専用 Chrome を終了するとローカルサーバーも終了する。
 
@@ -125,6 +125,31 @@ npm run test:browser-budget -- --stress-only
 
 予算の正本は `build_contracts.py`。`make generate` で JSON Schema、TS の `src/browser-limits.generated.ts`、Swift の `BrowserReadBudget.generated.swift` を生成する。上限を変える際は生成物もレビューする。read RPC の応答上限は観測予算＋64 KiB、待ち時間は max(15秒, 取得予算＋5秒) に合わせる。明示した RPC 上限・timeout は維持する。従来の操作 Task の観測上限2048・RPC上限1 MiBは引き上げない。
 
+## 固定 Task による共通ブラウザ操作
+
+`browser act` は同じ専用 Chrome profile を継続利用する。operator が許可した Task と grant を明示的に用意する。Task の形は `examples/browser-action-task.json`、grant の形は `ScopeGrant` と `BrowserActionPolicy` を参照する。`actionPolicy.task` は Task ファイル全体と一致し、`read:true`・`act:true`・`model:false`、必要な `allowedCommands`、対応 role、origin、十分な操作数と取得予算を指定する。
+
+```sh
+npm run browser -- act .runtime/browser-session-XXXXXX --origin https://example.org --task .runtime/task.json --grant .runtime/grant.json --raw --record
+npm run test:browser-actions
+```
+
+起動後は標準入力から1行1個の JSON を送る。観測結果から実際の ID を選び、次の手順を実行する。以下の ID は構文説明用で、そのまま操作対象として使えない。
+
+```jsonl
+{"command":"observe","nativeRoles":["AXTextField","AXButton"]}
+{"command":"step","stepId":"title","observationId":"OBS_FROM_OUTPUT","targetRef":"REF_FROM_OUTPUT"}
+{"command":"observe"}
+{"command":"verify"}
+{"command":"close"}
+```
+
+`step` は prepare と commit を続けて行う。個別の `prepare` / `commit`、`status` と `operationId`、文書変更後の `refresh`、`cancel` も利用できる。操作後は新しい観測で次の対象を選ぶ。`observe` の role・名前フィルタは表示だけに作用し、Host に保持する観測や権限は拡大しない。`--raw` なしではノード数などの metadata、ありでは画面属性を表示する。`--record` は観測と準備内容を0600で保存する。結果レポートは常にローカルに保存する。
+
+`verify` は固定した文字列検査と実行済み手順を照合し、`observed_success` / `assurance:screen_only` を返す。保存などの業務効果は別途確認する。Task の目的から手順を作ること、対象の意味判断、画面遷移に応じた再観測は外側の Supervisor が担う。
+
+再開には同じ profile・Task ID・revision を使う。`read-host.jsonl` を削除・差し替えない。期限と実行済み手順は復元され、結果不明がある場合は新 Task でも変更を止める。操作の実装・試験・現在の限界は [browser-action-status.md](docs/browser-action-status.md) を参照。
+
 ## Jev の実呼出し
 
 `--provider jev --model jev-1.13.0` と Model grant を明示する。認証は `TYPESAFE_API_KEY`、または macOS の `--keychain`（service `typesafe-api`）。キーはローカルプロセスのメモリで SDK に渡し、ファイル・delegate・ログへ渡さない。
@@ -145,7 +170,7 @@ make setup
 make check
 ```
 
-`make check` は正例10件・負例38件の JSON と一部の参照整合性を検査する。Core、native、モデル試験の代わりではない。契約を変えるときは `build_contracts.py` を編集する。
+`make check` は正例11件・負例42件の JSON と一部の参照整合性を検査する。Core、native、モデル試験の代わりではない。契約を変えるときは `build_contracts.py` を編集する。
 
 ```sh
 make generate

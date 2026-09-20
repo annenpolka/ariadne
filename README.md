@@ -6,7 +6,9 @@
 
 Task から独立した汎用ブラウザ読み取りセッションを追加した。Calendar 専用のコードを共通の `ariadne.chrome` profile に置き換え、origin・取得予算・文書世代を実行時に指定する。実 Chrome での結果と対応限界は [browser-read-status.md](docs/browser-read-status.md) を参照。
 
-サイト専用コードを原則増やさず、共通の観測と実行時の scope・Task を分離する。[Fable と検討した汎用化案](docs/browser-generalization-design.md) の第1段階と、第2段階の原文引用基盤を実装した。`browser extract` は AX の name/value を、元の観測・要素・属性・文字範囲とともに取り出す（[検証記録](docs/browser-extract-status.md)）。読み取り予算は [実ページと大規模な合成画面の測定](docs/browser-budget-sizing.md)に基づき、既定32,768要素・観測16 MiB・結果64 MiBへ拡大した。意味的な項目抽出と一般サイトでの入力・遷移は今後の段階である。
+サイト専用コードを原則増やさず、共通の観測と実行時の scope・Task を分離する。[Fable と検討した汎用化案](docs/browser-generalization-design.md) の第1段階と、第2段階の原文引用基盤を実装した。`browser extract` は AX の name/value を、元の観測・要素・属性・文字範囲とともに取り出す（[検証記録](docs/browser-extract-status.md)）。読み取り予算は [実ページと大規模な合成画面の測定](docs/browser-budget-sizing.md)に基づき、既定32,768要素・観測16 MiB・結果64 MiBへ拡大した。
+
+第3段階として `browser act` を追加した。operator が承認済みの Task・入力・手順を固定し、Codex 等の Supervisor が最新の AX 観測から対象を選び、入力・press・再観測を連続して実行できる。実 Chrome の Google Calendar では、許可されたテスト予定を保存し、一覧表示と開き直した編集画面で照合した（[実装と検証](docs/browser-action-status.md)）。意味的な項目抽出、一般サイトでの自動対応付け、目標だけから完走する Ariadne 単体の Planner は未実装。
 
 ローカル環境と実行手順は [CONTRIBUTING.md](CONTRIBUTING.md)、実行証拠と対応限界は [development-status.md](docs/development-status.md) を参照。
 
@@ -16,7 +18,7 @@ Task から独立した汎用ブラウザ読み取りセッションを追加し
 
 以下の設計は会話中の構想を具体化したもので、全アプリへの適合を示すものではない。初期実装と専用 fixture の実 AX・Jev 実呼出しを追加した。個々の設計案、実装済みの範囲、実行で確認した範囲は分けて記録する。独立 Chrome のローカル合成フォームでは AX 入力・読み戻し・URL 変更後の拒否を確認した（[記録](docs/browser-status.md)）。TextEdit profile は新規作業用文書で観測したが、この環境では本文の AXEnabled が unsupported のため変更を拒否する。
 
-同梱のJSON Schemaと例は、Task・ReadSessionSpec・ReadTaskSpec・ReadTaskResult 等9種類の契約の正本と架空の標本であり、grant、RPC、内部永続記録を含む全体のスキーマではない。`verify_contracts.py` は形と一部の参照整合性を検査する。観測の真実性、認可、対象の鮮度、クラッシュ復旧、GUIへの副作用は検査しない。例にあるトークン、成功記録、確率は架空のもの。ファイル群は、実機で採取した一つの連続トレースではない。
+同梱のJSON Schemaと例は、Task・ReadSessionSpec・ReadTaskSpec・ReadTaskResult・BrowserActionTask 等10種類の契約の正本と架空の標本であり、grant、RPC、内部永続記録を含む全体のスキーマではない。`verify_contracts.py` は形と一部の参照整合性を検査する。観測の真実性、認可、対象の鮮度、クラッシュ復旧、GUIへの副作用は検査しない。例にあるトークン、成功記録、確率は架空のもの。ファイル群は、実機で採取した一つの連続トレースではない。
 
 ## 1. 事実として設計に使う前提
 
@@ -358,13 +360,15 @@ fixtureの正解状態や業務IDは試験ハーネスだけが読む。モデ�
 
 ### P3：実アプリprofile
 
-現在の追加範囲は、Chrome の読み取り専用 adapter と実行時の origin scope。Task 不要の観測・領域指定・文書変更時の参照失効と、固定した ReadTask による属性の証拠付き引用を扱い、P2 の fixture 校正を一般サイトでの操作へ拡張していない（[検証記録](docs/browser-read-status.md)）。
+現在の追加範囲は、Chrome の共通 AX adapter と実行時の origin scope。Task 不要の観測・領域指定・文書変更時の参照失効と、固定した ReadTask による属性の証拠付き引用を扱い、P2 の fixture 校正を一般サイトでの操作へ拡張していない（[読み取りの検証](docs/browser-read-status.md)）。共通の操作経路は operator が固定した Task と最新の観測を使う `browser act` として追加した。対象の意味判断は外側の Supervisor が担い、Host は Task・順序・入力値・native guard を検査する（[操作の検証](docs/browser-action-status.md)）。
 
 TextEdit等で、ユーザーが用意した新規の作業用文書への入力・読み戻しを試す。ただしAXでの直接設定が可能かはprobeで確認する。未対応ならunsupportedとして止め、任意キー操作へ黙って落ちない。
 
 「明示的な保存操作を出さない」と「アプリが一切永続化しない」は別である。実アプリprofileは効果と検証可能範囲を確認して登録する。
 
 ### P4：Supervisor接続と薄い利用インターフェース
+
+`browser act` の JSONL インターフェースを Codex から連続操作した。これは Supervisor による観測・対象選択・実行の接続例であり、Ariadne 単体の汎用 Planner や未見サイトでの自動実行の完成ではない。
 
 blocked理由、最新の観測範囲、足りない情報、試した経路、未確定操作、残り予算を引継ぎとして返す。初版の再開は明示的に行い、制御ホストを不用意に常駐させない。
 

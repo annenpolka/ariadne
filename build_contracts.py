@@ -54,6 +54,13 @@ D["ReadLimits"] = obj({key: {"type": "integer", "minimum": lo, "maximum": hi}
 D["PageScope"] = obj({"origins": arr(SMALL, minItems=1, maxItems=16, uniqueItems=True)})
 D["DocumentStamp"] = obj({"sessionEpoch": ID, "ref": ID, "generation": POS})
 D["ReadSessionSpec"] = tagged("read_session", {"readSessionId": ID, "scopeRef": ID, "limits": ref("ReadLimits")})
+D["BrowserActionTask"] = tagged("browser_action_task", {
+    "recipeId": {"const": "browser-actions.v1"}, "taskId": ID, "revision": POS, "scopeRef": ID, "goal": SMALL,
+    "inputs": {"type": "object", "propertyNames": ID, "additionalProperties": TEXT, "maxProperties": 32},
+    "steps": arr({"oneOf": [obj({"id": ID, "purpose": SMALL, "kind": {"const": "invoke"}}),
+        obj({"id": ID, "purpose": SMALL, "kind": {"const": "set_value"}, "inputRef": ID})]}, minItems=1, maxItems=100),
+    "requiredChecks": arr(obj({"id": ID, "attribute": enum("name", "value"), "text": SMALL,
+        "match": enum("equals", "contains")}), minItems=1, maxItems=16), "limits": ref("ReadLimits")})
 D["EvidenceRef"] = obj({"observationId": ID, "nodeRef": ID,
     "field": enum("name", "role", "parentRef", "value", "enabled", "capabilities")})
 D["CheckSpec"] = obj({"id": ID, "kind": {"const": "value_equals_input"},
@@ -184,7 +191,7 @@ SCHEMA = {
     "$id": "urn:ariadne:contracts:0.1",
     "title": "Ariadne v0.1 illustrative design contracts",
     "description": "Design draft. Shape validation is not authorization, freshness checking, or a desktop safety guarantee.",
-    "oneOf": [ref(n) for n in ("TaskSpec", "ReadSessionSpec", "ReadTaskSpec", "ReadTaskResult", "Observation", "PreparedOperation", "HostReceipt", "TaskResult", "Decision")],
+    "oneOf": [ref(n) for n in ("TaskSpec", "BrowserActionTask", "ReadSessionSpec", "ReadTaskSpec", "ReadTaskResult", "Observation", "PreparedOperation", "HostReceipt", "TaskResult", "Decision")],
     "$defs": D
 }
 
@@ -203,6 +210,15 @@ swift_limits += "}\n"
 (ROOT / "native/Sources/AriadneHost/BrowserReadBudget.generated.swift").write_text(swift_limits)
 
 write("contracts.schema.json", SCHEMA)
+write("examples/browser-action-task.json", {"kind": "browser_action_task", "schemaVersion": "0.1",
+    "recipeId": "browser-actions.v1", "taskId": "action-demo", "revision": 1, "scopeRef": "scope-browser",
+    "goal": "合成申請に指定タイトルを入力し、確認画面から一度だけ送信して表示を確かめる。",
+    "inputs": {"title": "Synthetic example"},
+    "steps": [{"id": "title", "purpose": "タイトルを入力", "kind": "set_value", "inputRef": "title"},
+              {"id": "review", "purpose": "確認画面を開く", "kind": "invoke"},
+              {"id": "save", "purpose": "指定内容を送信", "kind": "invoke"}],
+    "requiredChecks": [{"id": "saved-title", "attribute": "name", "text": "Saved Synthetic example", "match": "equals"}],
+    "limits": {**READ_DEFAULTS, "maxCaptures": 100, "deadlineMs": 600000}})
 write("examples/read-session.json", {"kind": "read_session", "schemaVersion": "0.1",
     "readSessionId": "read-demo", "scopeRef": "scope-browser",
     "limits": READ_DEFAULTS})
@@ -314,4 +330,4 @@ READ_RESULT = {"kind": "read_task_result", "schemaVersion": "0.1", "taskId": REA
 write("examples/read-task.json", READ_TASK)
 write("examples/read-observation.json", READ_OBS)
 write("examples/read-task-result.json", READ_RESULT)
-print('Wrote schema and 11 illustrative example files.')
+print('Wrote schema and 12 illustrative example files.')

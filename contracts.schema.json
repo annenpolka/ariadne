@@ -8,6 +8,9 @@
       "$ref": "#/$defs/TaskSpec"
     },
     {
+      "$ref": "#/$defs/BrowserActionTask"
+    },
+    {
       "$ref": "#/$defs/ReadSessionSpec"
     },
     {
@@ -154,6 +157,178 @@
         "schemaVersion",
         "readSessionId",
         "scopeRef",
+        "limits"
+      ],
+      "additionalProperties": false
+    },
+    "BrowserActionTask": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "browser_action_task"
+        },
+        "schemaVersion": {
+          "const": "0.1"
+        },
+        "recipeId": {
+          "const": "browser-actions.v1"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scopeRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "inputs": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "maxProperties": 32
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "kind": {
+                    "const": "invoke"
+                  }
+                },
+                "required": [
+                  "id",
+                  "purpose",
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "kind": {
+                    "const": "set_value"
+                  },
+                  "inputRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "purpose",
+                  "kind",
+                  "inputRef"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "requiredChecks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+              },
+              "attribute": {
+                "enum": [
+                  "name",
+                  "value"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "match": {
+                "enum": [
+                  "equals",
+                  "contains"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "attribute",
+              "text",
+              "match"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 16
+        },
+        "limits": {
+          "$ref": "#/$defs/ReadLimits"
+        }
+      },
+      "required": [
+        "kind",
+        "schemaVersion",
+        "recipeId",
+        "taskId",
+        "revision",
+        "scopeRef",
+        "goal",
+        "inputs",
+        "steps",
+        "requiredChecks",
         "limits"
       ],
       "additionalProperties": false

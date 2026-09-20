@@ -1,6 +1,6 @@
 # サイト専用コードを原則増やさない汎用化案
 
-2026-09-20。ユーザーの方針「原則サイト専用の作り込みは避けたい」を前提に、Codex と Fable が2回の設計相談を行い、親が現行ソースと反例を照合した提案。相談後、第1段階の汎用ブラウザ観測セッションを実装した。現行 API と実測は [browser-read-status.md](browser-read-status.md)。第2段階は原文引用基盤 `project-ax-text.v1` を追加した（[実装記録](browser-extract-status.md)）。意味的な項目対応と第3段階は引き続き設計案である。
+2026-09-20。ユーザーの方針「原則サイト専用の作り込みは避けたい」を前提に、Codex と Fable が2回の設計相談を行い、親が現行ソースと反例を照合した提案。相談後、第1段階の汎用ブラウザ観測セッションを実装した。現行 API と実測は [browser-read-status.md](browser-read-status.md)。第2段階は原文引用基盤 `project-ax-text.v1` を追加した（[実装記録](browser-extract-status.md)）。第3段階は operator が固定した Task と Supervisor の対象選択を使う共通 AX 操作を追加した（[実装記録](browser-action-status.md)）。意味的な項目対応と Ariadne 単体の汎用 Planner は引き続き未実装。以下の設計相談時点のコード参照は履歴として残す。
 
 ## 推奨する方向
 

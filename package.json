@@ -20,7 +20,8 @@
     "browser": "node --import tsx src/browser.ts",
     "test:browser-read": "node --import tsx test/browser-read-acceptance.ts",
     "test:browser-extract": "node --import tsx test/browser-extract-acceptance.ts",
-    "test:browser-budget": "node --import tsx test/browser-budget-benchmark.ts"
+    "test:browser-budget": "node --import tsx test/browser-budget-benchmark.ts",
+    "test:browser-actions": "node --import tsx test/browser-action-acceptance.ts"
   },
   "dependencies": {
     "@typesafe-ai/sdk": "^0.6.0",

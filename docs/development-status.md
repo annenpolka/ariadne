@@ -1,14 +1,16 @@
 # 実装と検証の記録
 
-2026-09-20。`fill-fields.v1` の初期実装を追加した。初期公開 main は `58eba4b`、作業ブランチは `codex/implement-runtime`。今回の実装は未コミット・未プッシュ。以下はローカルで実行した結果で、GitHub CI の成功記録ではない。
+2026-09-20。`fill-fields.v1` の初期実装を追加した。初期公開 main は `58eba4b`、作業ブランチは `codex/implement-runtime`。初期実装から読み取り予算の拡張までを `cdf31bfc725510f9096e2aa2bbc8b0b65784e614` として push し、[hosted CI](https://github.com/annenpolka/ariadne/actions/runs/35489539694) の成功と remote ref の一致を確認した。以下の実機試験はローカルで実行した結果であり、hosted CI の対象とは分ける。
 
-独立 Chrome profile の追加試験と修正は [browser-status.md](browser-status.md)。Chrome はローカル合成フォーム限定で、実 AX 入力と遷移時の拒否を確認した。
+独立 Chrome profile の追加試験と修正は [browser-status.md](browser-status.md)。この段階では Chrome はローカル合成フォーム限定で、実 AX 入力と遷移時の拒否を確認した。
 
-当初の Calendar 専用読み取り（[旧記録](calendar-status.md)）は、Task 不要の `ariadne.chrome` 観測セッションに置き換えた。通常テスト109件、Swift 単体4件、実 Chrome 読み取り15項目と既存 AX／入力回帰を確認する構成。最新の実行証拠と初回失敗・修正は [browser-read-status.md](browser-read-status.md) に記録した。これは P3 の読み取り基盤の追加であり、一般サイトへの入力・遷移や P4 の汎用 Planner の完成を意味しない。
+当初の Calendar 専用読み取り（[旧記録](calendar-status.md)）は、Task 不要の `ariadne.chrome` 観測セッションに置き換えた。通常テスト109件、Swift 単体4件、実 Chrome 読み取り15項目と既存 AX／入力回帰を確認する構成。この段階の実行証拠と初回失敗・修正は [browser-read-status.md](browser-read-status.md) に記録した。これは P3 の読み取り基盤の追加であり、一般サイトへの入力・遷移や P4 の汎用 Planner の完成を意味しない。
 
 続く `project-ax-text.v1` の追加で、通常テストは135件。サイトに依存しない name/value の証拠付き引用を実装し、意味的な項目抽出とは区別した。[読み取り Task の記録](browser-extract-status.md)を参照。
 
-読み取り予算の再見積もりと、通信・抽出処理の拡張は [browser-budget-sizing.md](browser-budget-sizing.md)に記録した。以前の測定で partial だった MDN と RFC 9110、合成3万ノードを、拡大した既定予算で省略なく取得した。明示最大値で65,536ノードも確認済み。最終コードの通常138件・Swift単体8件・実 Chrome読取15項目／抽出7項目・Native AX操作fixture11シナリオが成功し、Calendarも592ノード属性レコードを予算による打ち切りなく読めた。予定の意味的な抽出や仮想化された未表示部分の全件取得を示すものではない。
+読み取り予算の再見積もりと、通信・抽出処理の拡張は [browser-budget-sizing.md](browser-budget-sizing.md)に記録した。以前の測定で partial だった MDN と RFC 9110、合成3万ノードを、拡大した既定予算で省略なく取得した。明示最大値で65,536ノードも確認済み。この段階のコードで通常138件・Swift単体8件・実 Chrome読取15項目／抽出7項目・Native AX操作fixture11シナリオが成功し、Calendarも592ノード属性レコードを予算による打ち切りなく読めた。予定の意味的な抽出や仮想化された未表示部分の全件取得を示すものではない。
+
+共通の `browser act` を追加し、operator が固定した手順の入力・press と再開を実装した。通常142件、Swift13件、実 Chrome操作9項目・読み取り15項目・抽出7項目、既存 Native fixture11シナリオと Chrome入力fixtureが成功。実 Calendar でも許可された予定を保存し、一覧と開き直した編集画面で確認した。Codex が対象選択と画面遷移を判断しており、Ariadne 単体の目標 Planner の検証ではない。詳細と証拠は [browser-action-status.md](browser-action-status.md)。
 
 ## 実装した範囲
 

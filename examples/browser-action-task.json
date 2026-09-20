@@ -1,0 +1,46 @@
+{
+  "kind": "browser_action_task",
+  "schemaVersion": "0.1",
+  "recipeId": "browser-actions.v1",
+  "taskId": "action-demo",
+  "revision": 1,
+  "scopeRef": "scope-browser",
+  "goal": "合成申請に指定タイトルを入力し、確認画面から一度だけ送信して表示を確かめる。",
+  "inputs": {
+    "title": "Synthetic example"
+  },
+  "steps": [
+    {
+      "id": "title",
+      "purpose": "タイトルを入力",
+      "kind": "set_value",
+      "inputRef": "title"
+    },
+    {
+      "id": "review",
+      "purpose": "確認画面を開く",
+      "kind": "invoke"
+    },
+    {
+      "id": "save",
+      "purpose": "指定内容を送信",
+      "kind": "invoke"
+    }
+  ],
+  "requiredChecks": [
+    {
+      "id": "saved-title",
+      "attribute": "name",
+      "text": "Saved Synthetic example",
+      "match": "equals"
+    }
+  ],
+  "limits": {
+    "maxNodes": 32768,
+    "maxDepth": 128,
+    "maxBytes": 16777216,
+    "maxCaptureMs": 10000,
+    "maxCaptures": 100,
+    "deadlineMs": 600000
+  }
+}

@@ -127,6 +127,14 @@ final class Server {
                 try params.require(["spec"])
                 let spec = try params.object("spec")
                 writer.send(result: try host.openReadSession(spec, admittedGeneration: admittedGeneration), id: id)
+            case "session.openAct":
+                try params.requireOnly(["task"]); try params.require(["task"])
+                writer.send(result: try host.openActionSession(params.object("task"), admittedGeneration: admittedGeneration), id: id)
+            case "action.prepare":
+                writer.send(result: try host.prepareAction(params), id: id)
+            case "action.commit":
+                try params.requireOnly(["preparedId"]); try params.require(["preparedId"])
+                writer.send(result: try host.commitAction(params.string("preparedId")), id: id)
             case "page.refresh":
                 try params.requireOnly([])
                 writer.send(result: try host.refreshPage(admittedGeneration: admittedGeneration), id: id)

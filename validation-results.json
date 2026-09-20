@@ -1,12 +1,17 @@
 {
   "schema": "Ariadne v0.1 design draft",
   "scope": "JSON shape checks and selected cross-field checks only; synthetic examples",
-  "accepted_valid_examples": 10,
-  "rejected_mutations": 38,
+  "accepted_valid_examples": 11,
+  "rejected_mutations": 42,
   "native_desktop_tested": false,
   "live_model_tested": false,
   "runtime_state_machine_tested": false,
   "cases": [
+    {
+      "test": "browser-action-task.json",
+      "expected": "accept",
+      "actual": "accept"
+    },
     {
       "test": "decision.json",
       "expected": "accept",
@@ -56,6 +61,30 @@
       "test": "task.json",
       "expected": "accept",
       "actual": "accept"
+    },
+    {
+      "test": "action step unknown input",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "action duplicate step",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValueError"
+    },
+    {
+      "test": "action fixed checks required",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
+    },
+    {
+      "test": "action invoke cannot carry arbitrary data",
+      "expected": "reject",
+      "actual": "reject",
+      "exception": "ValidationError"
     },
     {
       "test": "read observation cannot hide redaction",
